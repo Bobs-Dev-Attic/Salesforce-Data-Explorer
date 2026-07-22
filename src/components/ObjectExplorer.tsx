@@ -60,6 +60,19 @@ export default function ObjectExplorer() {
   );
   const restoredRef = useRef(false);
 
+  // Field metadata dialog (full describe of a single field)
+  const [fieldModal, setFieldModal] = useState<Record<string, unknown> | null>(
+    null
+  );
+  useEffect(() => {
+    if (!fieldModal) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setFieldModal(null);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [fieldModal]);
+
   // Fields table sorting + per-column filtering
   type SortKey = "label" | "name" | "type" | "details";
   const [sortKey, setSortKey] = useState<SortKey>("label");
@@ -274,7 +287,17 @@ export default function ObjectExplorer() {
                 </Row>
                 {expandedSub.includes(fieldsKey) &&
                   desc.fields.map((fld) => (
-                    <Row key={fld.name} depth={3} icon={iconForField(fld)}>
+                    <Row
+                      key={fld.name}
+                      depth={3}
+                      icon={iconForField(fld)}
+                      onClick={() =>
+                        setFieldModal(
+                          fld as unknown as Record<string, unknown>
+                        )
+                      }
+                      title="Click for full field metadata"
+                    >
                       {fld.name}
                       <span className="api">{fld.type}</span>
                     </Row>
@@ -475,7 +498,16 @@ export default function ObjectExplorer() {
                   </thead>
                   <tbody>
                     {fieldRows.map((r) => (
-                      <tr key={r.name}>
+                      <tr
+                        key={r.name}
+                        onClick={() =>
+                          setFieldModal(
+                            r.f as unknown as Record<string, unknown>
+                          )
+                        }
+                        style={{ cursor: "pointer" }}
+                        title="Click for full field metadata"
+                      >
                         <td title={r.label}>{r.label}</td>
                         <td>
                           <code>{r.name}</code>
@@ -496,6 +528,101 @@ export default function ObjectExplorer() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {fieldModal && (
+        <FieldMetadataDialog
+          field={fieldModal}
+          onClose={() => setFieldModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FieldMetadataDialog({
+  field,
+  onClose,
+}: {
+  field: Record<string, unknown>;
+  onClose: () => void;
+}) {
+  // Show the most useful properties first, then everything else.
+  const priority = [
+    "label",
+    "name",
+    "type",
+    "length",
+    "precision",
+    "scale",
+    "nillable",
+    "createable",
+    "updateable",
+    "unique",
+    "externalId",
+    "custom",
+    "calculated",
+    "defaultValue",
+    "referenceTo",
+    "relationshipName",
+    "inlineHelpText",
+    "picklistValues",
+  ];
+  const keys = Object.keys(field);
+  const ordered = [
+    ...priority.filter((k) => keys.includes(k)),
+    ...keys.filter((k) => !priority.includes(k)).sort(),
+  ];
+
+  function renderValue(key: string, value: unknown): React.ReactNode {
+    if (value === null || value === undefined || value === "") return "—";
+    if (key === "picklistValues" && Array.isArray(value)) {
+      const vals = value as { value: string; label?: string; active?: boolean }[];
+      if (vals.length === 0) return "—";
+      return (
+        <div style={{ maxHeight: 160, overflow: "auto" }}>
+          {vals.map((p, i) => (
+            <div key={i} className="api">
+              {p.value}
+              {p.label && p.label !== p.value ? ` — ${p.label}` : ""}
+              {p.active === false ? " (inactive)" : ""}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
+    if (typeof value === "boolean") return value ? "true" : "false";
+    if (typeof value === "object") return <code>{JSON.stringify(value)}</code>;
+    return String(value);
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h2 style={{ margin: 0, fontSize: 18 }}>
+            {String(field.label ?? field.name)}{" "}
+            <span className="muted" style={{ fontSize: 13 }}>
+              ({String(field.name)})
+            </span>
+          </h2>
+          <button className="linkbtn" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body">
+          <table className="meta-table">
+            <tbody>
+              {ordered.map((k) => (
+                <tr key={k}>
+                  <th>{k}</th>
+                  <td>{renderValue(k, field[k])}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
