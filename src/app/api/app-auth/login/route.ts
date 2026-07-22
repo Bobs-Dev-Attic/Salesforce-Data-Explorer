@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { checkPassword, createSessionCookie } from "@/lib/session";
+import {
+  checkPassword,
+  createSessionCookie,
+  isPasswordConfigured,
+} from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -12,6 +16,16 @@ export async function POST(req: Request) {
   } else {
     const form = await req.formData();
     password = String(form.get("password") || "");
+  }
+
+  if (!isPasswordConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "APP_PASSWORD is not set on this deployment. Add it in Vercel → Settings → Environment Variables (Production) and redeploy.",
+      },
+      { status: 503 }
+    );
   }
 
   if (!checkPassword(password)) {

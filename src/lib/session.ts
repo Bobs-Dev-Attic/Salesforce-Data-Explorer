@@ -42,13 +42,21 @@ function verify(token: string | undefined): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** Validate the submitted password against APP_PASSWORD (constant time). */
+/** Validate the submitted password against APP_PASSWORD (constant time).
+ * Both sides are trimmed so a trailing newline/space in the env var (a very
+ * common paste artifact) doesn't cause a silent mismatch. */
 export function checkPassword(submitted: string): boolean {
-  const expected = process.env.APP_PASSWORD || "";
+  const expected = (process.env.APP_PASSWORD || "").trim();
   if (!expected) return false;
-  const a = Buffer.from(submitted);
+  const a = Buffer.from(submitted.trim());
   const b = Buffer.from(expected);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** True when no APP_PASSWORD is configured — used to surface a clear message
+ * instead of a generic "invalid password" when the app is misconfigured. */
+export function isPasswordConfigured(): boolean {
+  return Boolean((process.env.APP_PASSWORD || "").trim());
 }
 
 export function createSessionCookie() {
