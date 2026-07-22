@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-07-22
+
+### Added
+
+- **App-wide loading indicators** — a thin animated **progress bar** at the top
+  of the screen and a small **"Working…" pill** appear automatically whenever any
+  API request is in flight (queries, describes, bulk job polling, exports, saves,
+  connections). Implemented by wrapping `fetch` once, so every request drives it,
+  complementing the existing per-button "Running…"/"Loading…" states.
+
 ## [0.12.1] - 2026-07-22
 
 ### Changed
