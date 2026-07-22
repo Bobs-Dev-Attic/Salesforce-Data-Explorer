@@ -1,14 +1,15 @@
 # Salesforce Data Explorer
 
 A web-friendly app (Next.js + Supabase, hosted on Vercel) to securely connect to
-your Salesforce org, run SOQL queries, explore object metadata, and export data —
-with Bulk API import/export on the roadmap.
+your Salesforce org, run SOQL queries, explore object metadata, export data, and
+bulk-import/export via the Salesforce Bulk API 2.0.
 
 - 🔐 **Secure by design** — Salesforce OAuth 2.0 web flow. We store only an
   **encrypted** (AES-256-GCM) refresh token; you log in on Salesforce's own page.
 - 🗂️ **Metadata caching** — global + per-object describes cached in Supabase.
 - 🔎 **SOQL runner** — run queries, browse results, export to CSV.
 - 🧭 **Object explorer** — browse every SObject and its fields.
+- 📦 **Bulk API 2.0** — export large datasets and import/upsert records from CSV.
 - 👤 **Single-user** — the whole app is gated behind one password.
 
 ## Architecture
@@ -19,7 +20,7 @@ with Bulk API import/export on the roadmap.
 | Backend    | Next.js Route Handlers (Node runtime)  |
 | Database   | Supabase (Postgres)                    |
 | Hosting    | Vercel                                 |
-| Salesforce | REST API v61.0 + OAuth 2.0, Bulk API 2.0 (roadmap) |
+| Salesforce | REST API v61.0 + OAuth 2.0 + Bulk API 2.0 |
 
 Secrets never reach the browser: the Supabase service-role key, Salesforce client
 secret, and encryption key are all server-side only.
