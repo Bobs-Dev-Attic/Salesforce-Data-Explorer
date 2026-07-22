@@ -57,11 +57,9 @@ export default async function HomePage({
               <Link className="btn secondary" href="/bulk">
                 Bulk API
               </Link>
-              <form action="/api/salesforce/disconnect" method="post" className="inline">
-                <button className="btn danger" type="submit">
-                  Disconnect
-                </button>
-              </form>
+              <Link className="btn secondary" href="/connections">
+                Manage connections
+              </Link>
             </div>
           </>
         ) : (
@@ -70,13 +68,13 @@ export default async function HomePage({
               <span className="badge off">Not connected</span>
             </p>
             <p className="muted">
-              Connect your Salesforce org to get started. You&apos;ll log in on
-              Salesforce&apos;s own page — we only store an encrypted refresh
-              token.
+              Register a Salesforce Connected App and connect one or more orgs.
+              You&apos;ll log in on Salesforce&apos;s own page — we only store an
+              encrypted refresh token, and client secrets are encrypted at rest.
             </p>
-            <a className="btn sf" href="/api/auth/salesforce/login">
-              Connect to Salesforce
-            </a>
+            <Link className="btn sf" href="/connections">
+              Set up a connection
+            </Link>
           </>
         )}
       </div>

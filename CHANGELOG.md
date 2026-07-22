@@ -3,6 +3,27 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-07-22
+
+### Added
+
+- **In-app Connected App setup** — register Salesforce OAuth credentials (login
+  URL, consumer key, consumer secret) on a new **Connections** page instead of
+  environment variables. Client secrets are AES-256-GCM encrypted at rest.
+- **Multiple saved connections** — connect several orgs, see them listed, switch
+  the active connection, and disconnect individually. The active connection is
+  used by the SOQL runner, object explorer, and Bulk tools.
+- New `salesforce_oauth_apps` table and `oauth_app_id` link on connections
+  (migration `0002_oauth_apps_multi_connection.sql`).
+- REST endpoints: `GET/POST /api/salesforce/apps`, `DELETE /api/salesforce/apps/:id`,
+  `GET /api/salesforce/connections`, `PATCH/DELETE /api/salesforce/connections/:id`.
+
+### Changed
+
+- OAuth login/callback now select the Connected App by id; token refresh uses the
+  per-connection app credentials. `SALESFORCE_CLIENT_ID/SECRET/LOGIN_URL` env vars
+  are no longer required.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added
