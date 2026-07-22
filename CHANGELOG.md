@@ -3,6 +3,15 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.2] - 2026-07-22
+
+### Fixed
+
+- **Connections page actions** — the Edit/Delete (and Rename/Disconnect) buttons
+  could be pushed off-screen after the Client Credentials button was added, since
+  the action cells didn't wrap. Action buttons now wrap onto multiple lines and
+  are always visible.
+
 ## [0.5.1] - 2026-07-22
 
 ### Added

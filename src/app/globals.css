@@ -228,6 +228,24 @@ label {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+/* Wrapping button group used in table action cells */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.actions .btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+/* Action cells must not clip their wrapped buttons */
+td.actions-cell {
+  max-width: none;
+  overflow: visible;
+  white-space: normal;
+}
 table {
   border-collapse: collapse;
   width: 100%;

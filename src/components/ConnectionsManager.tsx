@@ -319,37 +319,34 @@ export default function ConnectionsManager({
                     </td>
                     <td>{a.login_url}</td>
                     <td title={a.client_id}>{a.client_id.slice(0, 18)}…</td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      <a
-                        className="btn sf"
-                        href={`/api/auth/salesforce/login?appId=${a.id}`}
-                      >
-                        Connect org
-                      </a>{" "}
-                      <button
-                        className="btn secondary"
-                        onClick={() => connectClientCreds(a.id)}
-                        disabled={connectingId === a.id}
-                        title="Server-to-server; no browser redirect. Requires Client Credentials Flow enabled on the Connected App."
-                      >
-                        {connectingId === a.id
-                          ? "Connecting…"
-                          : "Connect (Client Credentials)"}
-                      </button>{" "}
-                      <button
-                        className="linkbtn"
-                        onClick={() => openEdit(a)}
-                        style={{ marginLeft: 8 }}
-                      >
-                        Edit
-                      </button>{" "}
-                      <button
-                        className="linkbtn"
-                        onClick={() => deleteApp(a.id)}
-                        style={{ marginLeft: 8 }}
-                      >
-                        Delete
-                      </button>
+                    <td className="actions-cell">
+                      <div className="actions">
+                        <a
+                          className="btn sf"
+                          href={`/api/auth/salesforce/login?appId=${a.id}`}
+                        >
+                          Connect org
+                        </a>
+                        <button
+                          className="btn secondary"
+                          onClick={() => connectClientCreds(a.id)}
+                          disabled={connectingId === a.id}
+                          title="Server-to-server; no browser redirect. Requires Client Credentials Flow enabled on the Connected App."
+                        >
+                          {connectingId === a.id
+                            ? "Connecting…"
+                            : "Connect (Client Credentials)"}
+                        </button>
+                        <button className="linkbtn" onClick={() => openEdit(a)}>
+                          Edit
+                        </button>
+                        <button
+                          className="linkbtn"
+                          onClick={() => deleteApp(a.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -400,29 +397,29 @@ export default function ConnectionsManager({
                         <span className="badge off">Idle</span>
                       )}
                     </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {!c.is_active && (
+                    <td className="actions-cell">
+                      <div className="actions">
+                        {!c.is_active && (
+                          <button
+                            className="btn secondary"
+                            onClick={() => activate(c.id)}
+                          >
+                            Make active
+                          </button>
+                        )}
                         <button
-                          className="btn secondary"
-                          onClick={() => activate(c.id)}
+                          className="linkbtn"
+                          onClick={() => renameConnection(c)}
                         >
-                          Make active
+                          Rename
                         </button>
-                      )}{" "}
-                      <button
-                        className="linkbtn"
-                        onClick={() => renameConnection(c)}
-                        style={{ marginLeft: 8 }}
-                      >
-                        Rename
-                      </button>{" "}
-                      <button
-                        className="linkbtn"
-                        onClick={() => removeConnection(c.id)}
-                        style={{ marginLeft: 8 }}
-                      >
-                        Disconnect
-                      </button>
+                        <button
+                          className="linkbtn"
+                          onClick={() => removeConnection(c.id)}
+                        >
+                          Disconnect
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
