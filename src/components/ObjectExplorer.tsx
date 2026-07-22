@@ -60,6 +60,25 @@ export default function ObjectExplorer() {
   );
   const restoredRef = useRef(false);
 
+  // Fields table sorting + per-column filtering
+  type SortKey = "label" | "name" | "type" | "details";
+  const [sortKey, setSortKey] = useState<SortKey>("label");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [colFilters, setColFilters] = useState({
+    label: "",
+    name: "",
+    type: "",
+    details: "",
+  });
+
+  function sortBy(key: SortKey) {
+    if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
   useEffect(() => {
     (async () => {
       setLoadingList(true);
@@ -272,6 +291,28 @@ export default function ObjectExplorer() {
 
   const detail = selected ? describeCache[selected] : null;
 
+  const fieldRows = useMemo(() => {
+    if (!detail) return [];
+    const rows = detail.fields.map((f) => ({
+      f,
+      label: f.label || "",
+      name: f.name || "",
+      type: f.type || "",
+      details: fieldDetails(f),
+    }));
+    const cf = colFilters;
+    const filtered = rows.filter(
+      (r) =>
+        r.label.toLowerCase().includes(cf.label.toLowerCase()) &&
+        r.name.toLowerCase().includes(cf.name.toLowerCase()) &&
+        r.type.toLowerCase().includes(cf.type.toLowerCase()) &&
+        r.details.toLowerCase().includes(cf.details.toLowerCase())
+    );
+    const dir = sortDir === "asc" ? 1 : -1;
+    filtered.sort((a, b) => a[sortKey].localeCompare(b[sortKey]) * dir);
+    return filtered;
+  }, [detail, colFilters, sortKey, sortDir]);
+
   return (
     <div>
       <h1>Object Explorer</h1>
@@ -335,8 +376,8 @@ export default function ObjectExplorer() {
                 </span>
               </h2>
               <p className="muted">
-                {detail.fields.length} fields · {detail.childRelationships.length}{" "}
-                child relationships
+                {fieldRows.length} of {detail.fields.length} fields ·{" "}
+                {detail.childRelationships.length} child relationships
               </p>
               <div
                 className="table-wrap"
@@ -345,31 +386,63 @@ export default function ObjectExplorer() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Label</th>
-                      <th>API name</th>
-                      <th>Type</th>
-                      <th>Details</th>
+                      {(
+                        [
+                          ["label", "Label"],
+                          ["name", "API name"],
+                          ["type", "Type"],
+                          ["details", "Details"],
+                        ] as [SortKey, string][]
+                      ).map(([key, label]) => (
+                        <th
+                          key={key}
+                          onClick={() => sortBy(key)}
+                          style={{ cursor: "pointer", userSelect: "none" }}
+                          title="Click to sort"
+                        >
+                          {label}
+                          {sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                        </th>
+                      ))}
+                    </tr>
+                    <tr>
+                      {(["label", "name", "type", "details"] as SortKey[]).map(
+                        (key) => (
+                          <th key={key} style={{ padding: "4px 6px", top: 33 }}>
+                            <input
+                              value={colFilters[key]}
+                              onChange={(e) =>
+                                setColFilters((c) => ({
+                                  ...c,
+                                  [key]: e.target.value,
+                                }))
+                              }
+                              placeholder="filter…"
+                              style={{ padding: "4px 6px", fontSize: 12 }}
+                            />
+                          </th>
+                        )
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.fields.map((f) => (
-                      <tr key={f.name}>
-                        <td title={f.label}>{f.label}</td>
+                    {fieldRows.map((r) => (
+                      <tr key={r.name}>
+                        <td title={r.label}>{r.label}</td>
                         <td>
-                          <code>{f.name}</code>
+                          <code>{r.name}</code>
                         </td>
-                        <td>{f.type}</td>
-                        <td>
-                          {f.referenceTo && f.referenceTo.length > 0
-                            ? `→ ${f.referenceTo.join(", ")}`
-                            : f.picklistValues && f.picklistValues.length > 0
-                            ? `${f.picklistValues.length} values`
-                            : f.length
-                            ? `len ${f.length}`
-                            : ""}
-                        </td>
+                        <td>{r.type}</td>
+                        <td>{r.details}</td>
                       </tr>
                     ))}
+                    {fieldRows.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          No fields match the filters.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -379,6 +452,15 @@ export default function ObjectExplorer() {
       </div>
     </div>
   );
+}
+
+function fieldDetails(f: SObjectField): string {
+  if (f.referenceTo && f.referenceTo.length > 0)
+    return `→ ${f.referenceTo.join(", ")}`;
+  if (f.picklistValues && f.picklistValues.length > 0)
+    return `${f.picklistValues.length} values`;
+  if (f.length) return `len ${f.length}`;
+  return "";
 }
 
 function iconForField(f: SObjectField): string {
