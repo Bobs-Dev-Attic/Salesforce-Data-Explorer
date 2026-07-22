@@ -3,6 +3,17 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-07-22
+
+### Changed
+
+- **SOQL page redesigned as a SQL-editor-style workspace** (inspired by the
+  Supabase SQL editor): a left sidebar with **saved queries** and **templates**,
+  a toolbar with a **row-limit** dropdown and **Run** (⌘/Ctrl+Enter), a code
+  editor with a **line-number gutter**, and a bottom results panel with a
+  **status line** and **export menu** (CSV / Excel / JSON). Saved queries reuse
+  the `saved_queries` store shared with the Data Explorer.
+
 ## [0.8.0] - 2026-07-22
 
 ### Added
