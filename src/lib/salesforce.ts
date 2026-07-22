@@ -317,12 +317,32 @@ export async function saveConnection(params: {
     label: params.label ?? params.username ?? params.instanceUrl,
     is_active: true,
   };
-  // Upsert on org_id so re-connecting the same org replaces credentials.
-  const { data, error } = await supabase
-    .from("salesforce_connections")
-    .upsert(row, { onConflict: "org_id" })
-    .select("id, org_id, username, instance_url, label, is_active, oauth_app_id")
-    .single();
+  const cols =
+    "id, org_id, username, instance_url, label, is_active, oauth_app_id";
+
+  // Manual find-or-update so we don't depend on an ON CONFLICT target
+  // (the org_id unique index is partial, which Postgres won't accept there).
+  // Re-connecting the same org replaces its stored credentials.
+  let existingId: string | null = null;
+  if (params.orgId) {
+    const { data: existing } = await supabase
+      .from("salesforce_connections")
+      .select("id")
+      .eq("org_id", params.orgId)
+      .maybeSingle();
+    existingId = (existing?.id as string) ?? null;
+  }
+
+  const query = existingId
+    ? supabase
+        .from("salesforce_connections")
+        .update(row)
+        .eq("id", existingId)
+        .select(cols)
+        .single()
+    : supabase.from("salesforce_connections").insert(row).select(cols).single();
+
+  const { data, error } = await query;
   if (error) throw new Error(`Failed to save connection: ${error.message}`);
   const saved = data as StoredConnection;
   await setActiveConnection(saved.id);
