@@ -29,6 +29,7 @@ export default function RootLayout({
           {authed && (
             <nav className="nav">
               <Link href="/">Home</Link>
+              <Link href="/explorer">Explorer</Link>
               <Link href="/query">SOQL</Link>
               <Link href="/objects">Objects</Link>
               <Link href="/bulk">Bulk</Link>
