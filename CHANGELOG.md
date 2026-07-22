@@ -3,6 +3,15 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-07-22
+
+### Added
+
+- **Sortable, filterable fields table** in the Object Explorer details pane:
+  click any column header (Label, API name, Type, Details) to sort
+  ascending/descending, and use the per-column filter row to narrow the fields.
+  A count shows matching vs total fields.
+
 ## [0.11.1] - 2026-07-22
 
 ### Added
