@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { isAuthenticated } from "@/lib/session";
+import pkg from "../../package.json";
+
+const appVersion = pkg.version;
 
 export const metadata: Metadata = {
   title: "Salesforce Data Explorer",
@@ -21,6 +24,7 @@ export default function RootLayout({
         <header className="topbar">
           <Link href="/" className="brand">
             ⚡ Salesforce Data Explorer
+            <span className="version">v{appVersion}</span>
           </Link>
           {authed && (
             <nav className="nav">

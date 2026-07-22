@@ -3,6 +3,14 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-07-22
+
+### Added
+
+- The app **version** (from `package.json`) is now shown as a badge next to the
+  "Salesforce Data Explorer" title in the header, so the running build is
+  visible at a glance.
+
 ## [0.5.0] - 2026-07-22
 
 ### Added
