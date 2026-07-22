@@ -85,6 +85,7 @@ export async function GET(req: Request) {
     return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Connection failed";
+    console.error("[sf_oauth_callback] token exchange failed:", msg);
     return NextResponse.redirect(
       appUrl(`/connections?error=${encodeURIComponent(msg)}`)
     );
