@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.3] - 2026-07-22
+
+### Fixed
+
+- **Saving a connection** failed with "there is no unique or exclusion constraint
+  matching the ON CONFLICT specification" because the `org_id` unique index is
+  partial (`WHERE org_id IS NOT NULL`), which Postgres rejects as an
+  `ON CONFLICT` target. `saveConnection` now does an explicit find-or-update
+  instead of an upsert — no schema/migration change required.
+
 ## [0.5.2] - 2026-07-22
 
 ### Fixed
