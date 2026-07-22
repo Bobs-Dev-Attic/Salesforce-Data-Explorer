@@ -319,21 +319,56 @@ td.actions-cell {
   line-height: 1.5;
   min-width: 40px;
 }
-.sqled-textarea {
+/* Code area: highlighted <pre> underlay + transparent-text textarea on top */
+.sqled-code {
+  position: relative;
   flex: 1;
-  border: none;
-  outline: none;
-  resize: vertical;
-  background: transparent;
-  color: var(--text);
-  padding: 12px;
-  line-height: 1.5;
   min-height: 220px;
+}
+.sqled-highlight,
+.sqled-textarea {
+  margin: 0;
+  padding: 12px;
   font-family: inherit;
   font-size: inherit;
+  line-height: 1.5;
   white-space: pre;
+  tab-size: 2;
+  border: 0;
+}
+.sqled-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 0;
+}
+.sqled-textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
   overflow: auto;
-  border-radius: 0;
+  z-index: 1;
+}
+.sqled-textarea::placeholder {
+  color: var(--muted);
+}
+.tok-kw {
+  color: #6aa9ff;
+  font-weight: 600;
+}
+.tok-str {
+  color: #7ee0a1;
+}
+.tok-num {
+  color: #ffb86b;
 }
 .sqled-results-head {
   display: flex;
