@@ -91,6 +91,39 @@ export async function getOAuthApp(id: string): Promise<OAuthApp | null> {
   return (data as OAuthApp) ?? null;
 }
 
+export async function updateOAuthApp(
+  id: string,
+  params: {
+    label?: string;
+    loginUrl?: string;
+    clientId?: string;
+    clientSecret?: string;
+  }
+): Promise<OAuthApp> {
+  const supabase = getAdminClient();
+  const patch: Record<string, unknown> = {};
+  if (params.label !== undefined) patch.label = params.label;
+  if (params.loginUrl !== undefined) patch.login_url = params.loginUrl;
+  if (params.clientId !== undefined) patch.client_id = params.clientId;
+  // Only rotate the secret when a non-empty value is supplied.
+  if (params.clientSecret) {
+    patch.client_secret_encrypted = encrypt(params.clientSecret);
+  }
+  if (Object.keys(patch).length === 0) {
+    const app = await getOAuthApp(id);
+    if (!app) throw new Error("Connected App not found");
+    return app;
+  }
+  const { data, error } = await supabase
+    .from("salesforce_oauth_apps")
+    .update(patch)
+    .eq("id", id)
+    .select("id, label, login_url, client_id")
+    .single();
+  if (error) throw new Error(`Failed to update app: ${error.message}`);
+  return data as OAuthApp;
+}
+
 async function getOAuthAppWithSecret(id: string): Promise<OAuthAppWithSecret> {
   const supabase = getAdminClient();
   const { data, error } = await supabase
@@ -268,6 +301,18 @@ export async function setActiveConnection(connectionId: string): Promise<void> {
   const { error } = await supabase
     .from("salesforce_connections")
     .update({ is_active: true })
+    .eq("id", connectionId);
+  if (error) throw new Error(error.message);
+}
+
+export async function renameConnection(
+  connectionId: string,
+  label: string
+): Promise<void> {
+  const supabase = getAdminClient();
+  const { error } = await supabase
+    .from("salesforce_connections")
+    .update({ label })
     .eq("id", connectionId);
   if (error) throw new Error(error.message);
 }

@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { disconnect, setActiveConnection } from "@/lib/salesforce";
+import {
+  disconnect,
+  renameConnection,
+  setActiveConnection,
+} from "@/lib/salesforce";
 import { isAuthenticated } from "@/lib/session";
 
 export const runtime = "nodejs";
 
-/** PATCH { action: "activate" } — mark this connection active. */
+/** PATCH { action: "activate" } — mark this connection active.
+ *  PATCH { action: "rename", label } — update the connection's label. */
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
@@ -17,6 +22,17 @@ export async function PATCH(
   try {
     if (action === "activate") {
       await setActiveConnection(params.id);
+    } else if (action === "rename") {
+      const label = String(body.label || "").trim();
+      if (!label) {
+        return NextResponse.json(
+          { error: "label is required" },
+          { status: 400 }
+        );
+      }
+      await renameConnection(params.id, label);
+    } else {
+      return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

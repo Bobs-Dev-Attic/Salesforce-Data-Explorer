@@ -3,6 +3,17 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-07-22
+
+### Added
+
+- **Edit saved Connected Apps** — update a Connected App's label, login URL,
+  consumer key, and (optionally) rotate the consumer secret without deleting and
+  re-creating it. Leaving the secret blank keeps the existing one.
+- **Rename connections** — give saved org connections a friendly name.
+- Endpoints: `PATCH /api/salesforce/apps/:id`, and a `rename` action on
+  `PATCH /api/salesforce/connections/:id`.
+
 ## [0.3.1] - 2026-07-22
 
 ### Fixed
