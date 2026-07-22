@@ -392,6 +392,43 @@ td.actions-cell {
   color: var(--danger);
 }
 
+/* Column filter funnel + flyout */
+.funnel-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0 2px;
+  margin-left: 6px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.funnel-btn:hover {
+  color: var(--text);
+}
+.funnel-btn.active {
+  color: var(--accent);
+}
+.col-flyout {
+  position: absolute;
+  top: 100%;
+  left: 6px;
+  margin-top: 4px;
+  z-index: 30;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 200px;
+}
+.col-flyout input {
+  flex: 1;
+}
+
 /* Windows-Explorer-style object tree */
 .grid-tree {
   display: grid;

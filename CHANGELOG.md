@@ -3,6 +3,15 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-07-22
+
+### Changed
+
+- Object Explorer fields table: column filtering is now a **funnel icon** next to
+  each column header that opens a **filter flyout** (input + Clear), instead of an
+  always-visible filter row. The funnel highlights when a column is filtered, and
+  the flyout closes on outside click / Enter / Escape.
+
 ## [0.12.0] - 2026-07-22
 
 ### Added

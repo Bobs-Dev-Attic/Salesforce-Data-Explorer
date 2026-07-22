@@ -70,6 +70,22 @@ export default function ObjectExplorer() {
     type: "",
     details: "",
   });
+  const [openFilterCol, setOpenFilterCol] = useState<SortKey | null>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+
+  // Close the filter flyout on outside click (but not when clicking a funnel).
+  useEffect(() => {
+    if (!openFilterCol) return;
+    function onDown(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (t.closest && t.closest(".funnel-btn")) return;
+      if (flyoutRef.current && !flyoutRef.current.contains(t)) {
+        setOpenFilterCol(null);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [openFilterCol]);
 
   function sortBy(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -394,35 +410,67 @@ export default function ObjectExplorer() {
                           ["details", "Details"],
                         ] as [SortKey, string][]
                       ).map(([key, label]) => (
-                        <th
-                          key={key}
-                          onClick={() => sortBy(key)}
-                          style={{ cursor: "pointer", userSelect: "none" }}
-                          title="Click to sort"
-                        >
-                          {label}
-                          {sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                        <th key={key} style={{ position: "relative" }}>
+                          <span
+                            onClick={() => sortBy(key)}
+                            style={{ cursor: "pointer", userSelect: "none" }}
+                            title="Click to sort"
+                          >
+                            {label}
+                            {sortKey === key
+                              ? sortDir === "asc"
+                                ? " ▲"
+                                : " ▼"
+                              : ""}
+                          </span>
+                          <button
+                            className={`funnel-btn${
+                              colFilters[key] ? " active" : ""
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenFilterCol((c) => (c === key ? null : key));
+                            }}
+                            title={
+                              colFilters[key]
+                                ? `Filtered: "${colFilters[key]}"`
+                                : "Filter column"
+                            }
+                            aria-label="Filter column"
+                          >
+                            <FunnelIcon active={Boolean(colFilters[key])} />
+                          </button>
+                          {openFilterCol === key && (
+                            <div className="col-flyout" ref={flyoutRef}>
+                              <input
+                                autoFocus
+                                value={colFilters[key]}
+                                onChange={(e) =>
+                                  setColFilters((c) => ({
+                                    ...c,
+                                    [key]: e.target.value,
+                                  }))
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === "Escape")
+                                    setOpenFilterCol(null);
+                                }}
+                                placeholder={`Filter ${label.toLowerCase()}…`}
+                                style={{ padding: "6px 8px", fontSize: 13 }}
+                              />
+                              <button
+                                className="btn secondary"
+                                style={{ padding: "6px 10px", fontSize: 12 }}
+                                onClick={() =>
+                                  setColFilters((c) => ({ ...c, [key]: "" }))
+                                }
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          )}
                         </th>
                       ))}
-                    </tr>
-                    <tr>
-                      {(["label", "name", "type", "details"] as SortKey[]).map(
-                        (key) => (
-                          <th key={key} style={{ padding: "4px 6px", top: 33 }}>
-                            <input
-                              value={colFilters[key]}
-                              onChange={(e) =>
-                                setColFilters((c) => ({
-                                  ...c,
-                                  [key]: e.target.value,
-                                }))
-                              }
-                              placeholder="filter…"
-                              style={{ padding: "4px 6px", fontSize: 12 }}
-                            />
-                          </th>
-                        )
-                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -451,6 +499,26 @@ export default function ObjectExplorer() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FunnelIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      style={{ verticalAlign: "middle" }}
+    >
+      <path
+        d="M1.5 2.5h13L9.5 8.5v4l-3 1.5V8.5z"
+        fill={active ? "var(--accent)" : "none"}
+        stroke={active ? "var(--accent)" : "currentColor"}
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
