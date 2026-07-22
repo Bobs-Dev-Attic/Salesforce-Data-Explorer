@@ -1,6 +1,44 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePersistentState } from "@/lib/usePersistentState";
+
+// ---- SOQL syntax highlighting ----
+const SOQL_KEYWORDS = [
+  "SELECT", "FROM", "WHERE", "AND", "OR", "NOT", "IN", "LIKE", "ORDER", "BY",
+  "GROUP", "HAVING", "LIMIT", "OFFSET", "ASC", "DESC", "NULLS", "FIRST", "LAST",
+  "NULL", "TRUE", "FALSE", "COUNT", "SUM", "AVG", "MIN", "MAX", "TYPEOF",
+  "WHEN", "THEN", "ELSE", "END", "USING", "SCOPE", "WITH", "DATA", "CATEGORY",
+  "FOR", "VIEW", "REFERENCE", "UPDATE", "TRACKING", "INCLUDES", "EXCLUDES",
+];
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function highlightSoql(src: string): string {
+  const kw = SOQL_KEYWORDS.join("|");
+  const re = new RegExp(
+    `('(?:[^'\\\\]|\\\\.)*')|\\b(${kw})\\b|\\b(\\d+(?:\\.\\d+)?)\\b`,
+    "gi"
+  );
+  let out = "";
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src))) {
+    out += escapeHtml(src.slice(last, m.index));
+    if (m[1]) out += `<span class="tok-str">${escapeHtml(m[1])}</span>`;
+    else if (m[2]) out += `<span class="tok-kw">${escapeHtml(m[2])}</span>`;
+    else if (m[3]) out += `<span class="tok-num">${escapeHtml(m[3])}</span>`;
+    last = re.lastIndex;
+  }
+  out += escapeHtml(src.slice(last));
+  // Trailing newline needs a filler so the overlay's height matches the textarea.
+  return out.endsWith("\n") ? out + " " : out;
+}
 
 interface SoqlResult {
   totalSize: number;
@@ -54,8 +92,8 @@ function cellValue(v: unknown): string {
 const DEFAULT_QUERY = "SELECT Id, Name FROM Account ORDER BY CreatedDate DESC LIMIT 100";
 
 export default function QueryRunner() {
-  const [soql, setSoql] = useState(DEFAULT_QUERY);
-  const [limit, setLimit] = useState(200);
+  const [soql, setSoql] = usePersistentState("sfde.soql.text", DEFAULT_QUERY);
+  const [limit, setLimit] = usePersistentState("sfde.soql.limit", 200);
   const [result, setResult] = useState<SoqlResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -68,6 +106,7 @@ export default function QueryRunner() {
 
   const gutterRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -280,19 +319,31 @@ export default function QueryRunner() {
             <div className="sqled-gutter" ref={gutterRef}>
               {gutter}
             </div>
-            <textarea
-              ref={taRef}
-              className="sqled-textarea"
-              value={soql}
-              spellCheck={false}
-              onChange={(e) => setSoql(e.target.value)}
-              onKeyDown={onKeyDown}
-              onScroll={(e) => {
-                if (gutterRef.current)
-                  gutterRef.current.scrollTop = e.currentTarget.scrollTop;
-              }}
-              placeholder="Write SOQL, then press Run (⌘/Ctrl+Enter)…"
-            />
+            <div className="sqled-code">
+              <pre
+                className="sqled-highlight"
+                ref={preRef}
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: highlightSoql(soql) }}
+              />
+              <textarea
+                ref={taRef}
+                className="sqled-textarea"
+                value={soql}
+                spellCheck={false}
+                onChange={(e) => setSoql(e.target.value)}
+                onKeyDown={onKeyDown}
+                onScroll={(e) => {
+                  const t = e.currentTarget;
+                  if (gutterRef.current) gutterRef.current.scrollTop = t.scrollTop;
+                  if (preRef.current) {
+                    preRef.current.scrollTop = t.scrollTop;
+                    preRef.current.scrollLeft = t.scrollLeft;
+                  }
+                }}
+                placeholder="Write SOQL, then press Run (⌘/Ctrl+Enter)…"
+              />
+            </div>
           </div>
 
           <div className="sqled-results">

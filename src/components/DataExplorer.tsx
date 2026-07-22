@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readPersisted, writePersisted } from "@/lib/usePersistentState";
+
+const EXPLORER_KEY = "sfde.explorer.state";
 
 interface GlobalObject {
   name: string;
@@ -191,7 +194,40 @@ export default function DataExplorer() {
       }
     })();
     loadSaved();
+
+    // Restore the builder state persisted from a previous session.
+    const persisted = readPersisted<BuilderState>(EXPLORER_KEY);
+    if (persisted && persisted.selectedObject) {
+      restoreRef.current = persisted;
+      setSelectedObject(persisted.selectedObject);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist builder state whenever it changes (once an object is chosen and any
+  // pending restore has been applied).
+  useEffect(() => {
+    if (!selectedObject || restoreRef.current) return;
+    writePersisted(EXPLORER_KEY, {
+      selectedObject,
+      columns,
+      filters,
+      logic,
+      orderBy,
+      orderDir,
+      limit,
+      childSelections,
+    });
+  }, [
+    selectedObject,
+    columns,
+    filters,
+    logic,
+    orderBy,
+    orderDir,
+    limit,
+    childSelections,
+  ]);
 
   const loadSaved = useCallback(async () => {
     try {

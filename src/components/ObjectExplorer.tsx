@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePersistentState, readPersisted } from "@/lib/usePersistentState";
 
 interface GlobalObject {
   name: string;
@@ -27,12 +28,13 @@ interface DescribeResult {
 
 export default function ObjectExplorer() {
   const [objects, setObjects] = useState<GlobalObject[]>([]);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = usePersistentState("sfde.objects.filter", "");
   const [selected, setSelected] = useState<string | null>(null);
   const [describe, setDescribe] = useState<DescribeResult | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingDescribe, setLoadingDescribe] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const restoredRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -48,10 +50,22 @@ export default function ObjectExplorer() {
         setLoadingList(false);
       }
     })();
+    // Restore last-viewed object.
+    const last = readPersisted<string>("sfde.objects.selected");
+    if (last && !restoredRef.current) {
+      restoredRef.current = true;
+      select(last);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function select(name: string) {
     setSelected(name);
+    try {
+      window.localStorage.setItem("sfde.objects.selected", JSON.stringify(name));
+    } catch {
+      /* ignore */
+    }
     setDescribe(null);
     setLoadingDescribe(true);
     setError(null);

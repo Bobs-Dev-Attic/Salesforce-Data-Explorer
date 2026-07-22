@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePersistentState } from "@/lib/usePersistentState";
 
 interface BulkJob {
   id: string;
@@ -71,7 +72,8 @@ function download(url: string) {
 // Bulk Export
 // ------------------------------------------------------------------
 function BulkExport() {
-  const [soql, setSoql] = useState(
+  const [soql, setSoql] = usePersistentState(
+    "sfde.bulk.exportSoql",
     "SELECT Id, Name, CreatedDate FROM Account"
   );
   const [jobId, setJobId] = useState<string | null>(null);
@@ -160,9 +162,15 @@ function BulkExport() {
 // Import
 // ------------------------------------------------------------------
 function BulkImport() {
-  const [object, setObject] = useState("");
-  const [operation, setOperation] = useState("insert");
-  const [externalId, setExternalId] = useState("");
+  const [object, setObject] = usePersistentState("sfde.bulk.importObject", "");
+  const [operation, setOperation] = usePersistentState(
+    "sfde.bulk.importOperation",
+    "insert"
+  );
+  const [externalId, setExternalId] = usePersistentState(
+    "sfde.bulk.importExternalId",
+    ""
+  );
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);

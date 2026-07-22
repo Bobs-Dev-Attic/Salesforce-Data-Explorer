@@ -3,6 +3,19 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-07-22
+
+### Added
+
+- **SOQL syntax highlighting** in the SOQL editor — keywords, string literals,
+  and numbers are colorized via a highlighted overlay synced to the textarea
+  (caret and selection still native).
+- **Persistent page state** — the Data Explorer (full builder), SOQL editor
+  (query + row limit), Objects (selected object + filter), and Bulk (export
+  SOQL, import object/operation/external-id) now remember your working state in
+  `localStorage`. It survives navigation, **logout, and session timeout**, and
+  is restored when you return.
+
 ## [0.9.0] - 2026-07-22
 
 ### Changed
