@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-07-22
+
+### Fixed
+
+- **App unlock**: `APP_PASSWORD` and the submitted password are now trimmed, so a
+  trailing newline/space in the environment variable (a common paste artifact)
+  no longer causes a silent "invalid password".
+- The unlock endpoint now returns a clear, specific message when `APP_PASSWORD`
+  is not configured on the deployment, instead of a generic failure.
+
 ## [0.3.0] - 2026-07-22
 
 ### Added
