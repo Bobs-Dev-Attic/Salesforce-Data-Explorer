@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-07-22
+
+### Changed
+
+- **Object Explorer redesigned as a Windows-Explorer-style tree**: collapsible
+  **Standard Objects** / **Custom Objects** folders → objects → expandable
+  **Fields** and **Child Relationships** nodes (with type icons). Selecting an
+  object shows its full field table in a details pane. Filter box and last
+  selection persist across sessions.
+
 ## [0.10.0] - 2026-07-22
 
 ### Added
