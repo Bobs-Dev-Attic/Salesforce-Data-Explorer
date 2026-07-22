@@ -54,6 +54,9 @@ export default async function HomePage({
               <Link className="btn secondary" href="/objects">
                 Explore objects
               </Link>
+              <Link className="btn secondary" href="/bulk">
+                Bulk API
+              </Link>
               <form action="/api/salesforce/disconnect" method="post" className="inline">
                 <button className="btn danger" type="submit">
                   Disconnect
@@ -84,7 +87,7 @@ export default async function HomePage({
           <li>Run ad-hoc SOQL queries and browse results in a grid.</li>
           <li>Explore every SObject and its fields (metadata is cached).</li>
           <li>Export query results to CSV.</li>
-          <li>Bulk export/import via the Bulk API — coming next.</li>
+          <li>Bulk-export large datasets and import/upsert via the Bulk API 2.0.</li>
         </ul>
       </div>
     </div>

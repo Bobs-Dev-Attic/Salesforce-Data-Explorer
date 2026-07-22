@@ -3,6 +3,19 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-07-22
+
+### Added
+
+- **Bulk API 2.0 export** — start a query job, poll to completion, and download
+  the full result set as CSV (paginated via `Sforce-Locator`). Handles datasets
+  larger than the standard REST query limit.
+- **Bulk API 2.0 import** — insert / update / upsert / delete / hard-delete via
+  ingest jobs. Upload a CSV (file picker or paste), pick the object and
+  operation (external ID field for upsert), then poll job status and download
+  the successful / failed record results.
+- New **Bulk** page and navigation entry.
+
 ## [0.1.0] - 2026-07-21
 
 ### Added
