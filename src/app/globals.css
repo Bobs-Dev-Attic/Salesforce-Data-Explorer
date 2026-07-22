@@ -246,6 +246,18 @@ td.actions-cell {
   overflow: visible;
   white-space: normal;
 }
+
+.saved-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.saved-chip .linkbtn {
+  color: var(--accent);
+}
 table {
   border-collapse: collapse;
   width: 100%;

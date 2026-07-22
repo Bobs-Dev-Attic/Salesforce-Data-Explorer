@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface GlobalObject {
   name: string;
@@ -21,7 +21,15 @@ interface SObjectField {
   type: string;
   filterable?: boolean;
   sortable?: boolean;
+  relationshipName?: string | null;
+  referenceTo?: string[];
   picklistValues?: PicklistValue[];
+}
+
+interface ChildRelationship {
+  relationshipName: string | null;
+  childSObject: string;
+  field: string;
 }
 
 interface Filter {
@@ -30,9 +38,27 @@ interface Filter {
   value: string;
 }
 
+interface SavedQuery {
+  id: string;
+  name: string;
+  object_name: string | null;
+  soql: string;
+  builder_state: BuilderState | null;
+}
+
+interface BuilderState {
+  selectedObject: string;
+  columns: string[];
+  filters: Filter[];
+  logic: string;
+  orderBy: string;
+  orderDir: string;
+  limit: string;
+  childSelections: Record<string, string[]>;
+}
+
 const OPERATORS = ["=", "!=", "<", "<=", ">", ">=", "LIKE", "IN", "NOT IN"];
 
-// Salesforce field types whose SOQL literals must be single-quoted.
 const QUOTED_TYPES = new Set([
   "string",
   "id",
@@ -57,7 +83,6 @@ function quote(v: string): string {
   return `'${v.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
-/** Normalize an <input type="datetime-local"> value to a SOQL datetime literal. */
 function normalizeDateTime(v: string): string {
   const s = v.trim();
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return `${s}:00Z`;
@@ -70,58 +95,30 @@ function formatValue(type: string | undefined, raw: string, force = false): stri
   const t = (type || "").toLowerCase();
   if (!force && t === "datetime") return normalizeDateTime(v);
   if (force || needsQuote(type)) return quote(v);
-  return v; // numbers, booleans, dates — used as typed
+  return v;
 }
 
-function buildSoql(params: {
-  object: string;
-  columns: string[];
-  filters: Filter[];
-  logic: string;
-  orderBy: string;
-  orderDir: string;
-  limit: string;
-  fieldType: (name: string) => string | undefined;
-}): string {
-  const { object, columns, filters, logic, orderBy, orderDir, limit } = params;
-  if (!object) return "";
-  const cols = columns.length ? columns.join(", ") : "Id";
-  let q = `SELECT ${cols} FROM ${object}`;
-
-  const clauses = filters
-    .filter((f) => f.field && f.operator && f.value.trim() !== "")
-    .map((f) => {
-      const type = params.fieldType(f.field);
-      if (f.operator === "IN" || f.operator === "NOT IN") {
-        const items = f.value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .map((s) => formatValue(type, s));
-        return `${f.field} ${f.operator} (${items.join(", ")})`;
+/** Flatten a record for display: dotted parent fields, child subqueries as counts. */
+function flattenForDisplay(rec: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (obj: Record<string, unknown>, prefix: string) => {
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === "attributes") continue;
+      const key = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        const asRec = v as Record<string, unknown>;
+        if (Array.isArray(asRec.records)) {
+          out[key] = `${(asRec.records as unknown[]).length} row(s)`;
+        } else {
+          walk(asRec, key);
+        }
+      } else {
+        out[key] = v === null || v === undefined ? "" : String(v);
       }
-      const force = f.operator === "LIKE";
-      return `${f.field} ${f.operator} ${formatValue(type, f.value, force)}`;
-    });
-
-  if (clauses.length) q += ` WHERE ${clauses.join(` ${logic} `)}`;
-  if (orderBy) q += ` ORDER BY ${orderBy} ${orderDir}`;
-  if (limit && Number(limit) > 0) q += ` LIMIT ${Number(limit)}`;
-  return q;
-}
-
-function cellValue(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "object") {
-    const obj = v as Record<string, unknown>;
-    if ("attributes" in obj) {
-      const { attributes, ...rest } = obj;
-      void attributes;
-      return Object.values(rest).filter(Boolean).join(" · ");
     }
-    return JSON.stringify(v);
-  }
-  return String(v);
+  };
+  walk(rec, "");
+  return out;
 }
 
 export default function DataExplorer() {
@@ -131,9 +128,25 @@ export default function DataExplorer() {
   const [objectFilter, setObjectFilter] = useState("");
 
   const [fields, setFields] = useState<SObjectField[]>([]);
+  const [childRels, setChildRels] = useState<ChildRelationship[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
   const [columns, setColumns] = useState<string[]>([]);
   const [fieldFilter, setFieldFilter] = useState("");
+
+  // Parent relationship (lookup) field caches, keyed by relationship name.
+  const [relatedCache, setRelatedCache] = useState<
+    Record<string, { object: string; fields: SObjectField[] }>
+  >({});
+  const [expandedRel, setExpandedRel] = useState<Set<string>>(new Set());
+
+  // Child subqueries: selected fields per child relationship name.
+  const [childCache, setChildCache] = useState<
+    Record<string, { object: string; fields: SObjectField[] }>
+  >({});
+  const [childSelections, setChildSelections] = useState<
+    Record<string, string[]>
+  >({});
+  const [expandedChild, setExpandedChild] = useState<Set<string>>(new Set());
 
   const [filters, setFilters] = useState<Filter[]>([]);
   const [logic, setLogic] = useState("AND");
@@ -149,8 +162,17 @@ export default function DataExplorer() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">("csv");
+  const [exporting, setExporting] = useState(false);
 
-  // Load queryable objects
+  const [saved, setSaved] = useState<SavedQuery[]>([]);
+  const [savedNeedsMigration, setSavedNeedsMigration] = useState(false);
+
+  // When loading a saved query we defer applying its state until the object's
+  // fields have loaded (the object-change effect resets columns/filters).
+  const restoreRef = useRef<BuilderState | null>(null);
+
+  // ---- Load objects + saved queries ----
   useEffect(() => {
     (async () => {
       setObjectsLoading(true);
@@ -161,25 +183,39 @@ export default function DataExplorer() {
           setObjects(
             (data.objects || []).filter((o: GlobalObject) => o.queryable)
           );
-        } else {
-          setError(data.error || "Failed to load objects");
-        }
+        } else setError(data.error || "Failed to load objects");
       } catch {
         setError("Network error");
       } finally {
         setObjectsLoading(false);
       }
     })();
+    loadSaved();
   }, []);
 
-  // Load fields when an object is chosen
+  const loadSaved = useCallback(async () => {
+    try {
+      const res = await fetch("/api/salesforce/saved-queries");
+      const data = await res.json();
+      if (res.ok) {
+        setSaved(data.queries || []);
+        setSavedNeedsMigration(Boolean(data.needsMigration));
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // ---- Load fields when an object is chosen ----
   useEffect(() => {
     if (!selectedObject) return;
     setFieldsLoading(true);
     setFields([]);
-    setColumns([]);
-    setFilters([]);
-    setOrderBy("");
+    setChildRels([]);
+    setRelatedCache({});
+    setExpandedRel(new Set());
+    setChildCache({});
+    setExpandedChild(new Set());
     setResult(null);
     (async () => {
       try {
@@ -196,19 +232,45 @@ export default function DataExplorer() {
             type: f.type,
             filterable: f.filterable,
             sortable: f.sortable,
+            relationshipName: f.relationshipName,
+            referenceTo: f.referenceTo,
             picklistValues: (f.picklistValues || []).filter(
               (p) => p.active !== false
             ),
           })
         );
         setFields(fs);
-        // Default to Id + Name if present, else first 5 fields.
-        const defaults = fs
-          .filter((f) => ["Id", "Name"].includes(f.name))
-          .map((f) => f.name);
-        setColumns(
-          defaults.length ? defaults : fs.slice(0, 5).map((f) => f.name)
+        setChildRels(
+          (data.childRelationships || [])
+            .filter((c: ChildRelationship) => c.relationshipName)
+            .map((c: ChildRelationship) => ({
+              relationshipName: c.relationshipName,
+              childSObject: c.childSObject,
+              field: c.field,
+            }))
         );
+
+        const restore = restoreRef.current;
+        if (restore && restore.selectedObject === selectedObject) {
+          setColumns(restore.columns);
+          setFilters(restore.filters);
+          setLogic(restore.logic);
+          setOrderBy(restore.orderBy);
+          setOrderDir(restore.orderDir);
+          setLimit(restore.limit);
+          setChildSelections(restore.childSelections || {});
+          restoreRef.current = null;
+        } else {
+          const defaults = fs
+            .filter((f) => ["Id", "Name"].includes(f.name))
+            .map((f) => f.name);
+          setColumns(
+            defaults.length ? defaults : fs.slice(0, 5).map((f) => f.name)
+          );
+          setFilters([]);
+          setOrderBy("");
+          setChildSelections({});
+        }
       } catch {
         setError("Network error");
       } finally {
@@ -217,24 +279,176 @@ export default function DataExplorer() {
     })();
   }, [selectedObject]);
 
-  const fieldType = (name: string) =>
-    fields.find((f) => f.name === name)?.type;
-
-  const soql = useMemo(
+  // ---- Relationship (parent) field loading ----
+  const referenceFields = useMemo(
     () =>
-      buildSoql({
-        object: selectedObject,
-        columns,
-        filters,
-        logic,
-        orderBy,
-        orderDir,
-        limit,
-        fieldType,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedObject, columns, filters, logic, orderBy, orderDir, limit, fields]
+      fields.filter(
+        (f) =>
+          f.type === "reference" &&
+          f.relationshipName &&
+          (f.referenceTo?.length ?? 0) > 0
+      ),
+    [fields]
   );
+
+  async function toggleRel(relName: string, parentObject: string) {
+    setExpandedRel((s) => {
+      const next = new Set(s);
+      next.has(relName) ? next.delete(relName) : next.add(relName);
+      return next;
+    });
+    if (!relatedCache[relName]) {
+      try {
+        const res = await fetch(`/api/salesforce/objects/${parentObject}`);
+        const data = await res.json();
+        if (res.ok) {
+          setRelatedCache((c) => ({
+            ...c,
+            [relName]: {
+              object: parentObject,
+              fields: (data.fields || []).map((f: SObjectField) => ({
+                name: f.name,
+                label: f.label,
+                type: f.type,
+                filterable: f.filterable,
+                sortable: f.sortable,
+                picklistValues: (f.picklistValues || []).filter(
+                  (p) => p.active !== false
+                ),
+              })),
+            },
+          }));
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  // ---- Child relationship loading ----
+  async function toggleChild(relName: string, childObject: string) {
+    setExpandedChild((s) => {
+      const next = new Set(s);
+      next.has(relName) ? next.delete(relName) : next.add(relName);
+      return next;
+    });
+    if (!childCache[relName]) {
+      try {
+        const res = await fetch(`/api/salesforce/objects/${childObject}`);
+        const data = await res.json();
+        if (res.ok) {
+          setChildCache((c) => ({
+            ...c,
+            [relName]: {
+              object: childObject,
+              fields: (data.fields || []).map((f: SObjectField) => ({
+                name: f.name,
+                label: f.label,
+                type: f.type,
+              })),
+            },
+          }));
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  function toggleChildField(relName: string, fieldName: string) {
+    setChildSelections((sel) => {
+      const cur = sel[relName] || [];
+      const next = cur.includes(fieldName)
+        ? cur.filter((f) => f !== fieldName)
+        : [...cur, fieldName];
+      return { ...sel, [relName]: next };
+    });
+  }
+
+  // Resolve a (possibly dotted) field's type for filter inputs & quoting.
+  const fieldTypeOf = useCallback(
+    (name: string): string | undefined => {
+      if (name.includes(".")) {
+        const [rel, sub] = name.split(".");
+        return relatedCache[rel]?.fields.find((f) => f.name === sub)?.type;
+      }
+      return fields.find((f) => f.name === name)?.type;
+    },
+    [fields, relatedCache]
+  );
+
+  const fieldMeta = useCallback(
+    (name: string): SObjectField | undefined => {
+      if (name.includes(".")) {
+        const [rel, sub] = name.split(".");
+        return relatedCache[rel]?.fields.find((f) => f.name === sub);
+      }
+      return fields.find((f) => f.name === name);
+    },
+    [fields, relatedCache]
+  );
+
+  // Filterable field options: base fields + loaded relationship fields.
+  const filterFieldOptions = useMemo(() => {
+    const base = fields
+      .filter((f) => f.filterable !== false)
+      .map((f) => f.name);
+    const rel: string[] = [];
+    for (const [relName, info] of Object.entries(relatedCache)) {
+      for (const f of info.fields) {
+        if (f.filterable !== false) rel.push(`${relName}.${f.name}`);
+      }
+    }
+    return [...base, ...rel];
+  }, [fields, relatedCache]);
+
+  const sortFieldOptions = useMemo(
+    () => fields.filter((f) => f.sortable !== false).map((f) => f.name),
+    [fields]
+  );
+
+  // ---- Build SOQL ----
+  const soql = useMemo(() => {
+    if (!selectedObject) return "";
+    const childCols = Object.entries(childSelections)
+      .filter(([, fs]) => fs.length)
+      .map(([rel, fs]) => `(SELECT ${fs.join(", ")} FROM ${rel})`);
+    const allCols = [...columns, ...childCols];
+    const cols = allCols.length ? allCols.join(", ") : "Id";
+    let q = `SELECT ${cols} FROM ${selectedObject}`;
+
+    const clauses = filters
+      .filter((f) => f.field && f.operator && f.value.trim() !== "")
+      .map((f) => {
+        const type = fieldTypeOf(f.field);
+        if (f.operator === "IN" || f.operator === "NOT IN") {
+          const items = f.value
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((s) => formatValue(type, s));
+          return `${f.field} ${f.operator} (${items.join(", ")})`;
+        }
+        const force = f.operator === "LIKE";
+        return `${f.field} ${f.operator} ${formatValue(type, f.value, force)}`;
+      });
+    if (clauses.length) q += ` WHERE ${clauses.join(` ${logic} `)}`;
+    if (orderBy) q += ` ORDER BY ${orderBy} ${orderDir}`;
+    if (limit && Number(limit) > 0) q += ` LIMIT ${Number(limit)}`;
+    return q;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedObject,
+    columns,
+    childSelections,
+    filters,
+    logic,
+    orderBy,
+    orderDir,
+    limit,
+    fields,
+    relatedCache,
+  ]);
 
   const filteredObjects = useMemo(() => {
     const f = objectFilter.trim().toLowerCase();
@@ -259,7 +473,6 @@ export default function DataExplorer() {
       cols.includes(name) ? cols.filter((c) => c !== name) : [...cols, name]
     );
   }
-
   function addFilter() {
     setFilters((fs) => [...fs, { field: "", operator: "=", value: "" }]);
   }
@@ -271,11 +484,11 @@ export default function DataExplorer() {
   }
 
   function renderValueInput(f: Filter, i: number) {
-    const fld = fields.find((x) => x.name === f.field);
-    const type = (fld?.type || "").toLowerCase();
+    const meta = fieldMeta(f.field);
+    const type = (meta?.type || "").toLowerCase();
     const isIn = f.operator === "IN" || f.operator === "NOT IN";
     const set = (v: string) => updateFilter(i, { value: v });
-    const pick = fld?.picklistValues || [];
+    const pick = meta?.picklistValues || [];
 
     if (type === "boolean") {
       return (
@@ -288,10 +501,7 @@ export default function DataExplorer() {
     }
     if ((type === "picklist" || type === "multipicklist") && pick.length) {
       if (isIn) {
-        const selected = f.value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
+        const selected = f.value.split(",").map((s) => s.trim()).filter(Boolean);
         return (
           <select
             multiple
@@ -326,11 +536,7 @@ export default function DataExplorer() {
     }
     if (!isIn && type === "date") {
       return (
-        <input
-          type="date"
-          value={f.value}
-          onChange={(e) => set(e.target.value)}
-        />
+        <input type="date" value={f.value} onChange={(e) => set(e.target.value)} />
       );
     }
     if (!isIn && type === "datetime") {
@@ -342,10 +548,7 @@ export default function DataExplorer() {
         />
       );
     }
-    if (
-      !isIn &&
-      ["int", "double", "currency", "percent"].includes(type)
-    ) {
+    if (!isIn && ["int", "double", "currency", "percent"].includes(type)) {
       return (
         <input
           type="number"
@@ -384,11 +587,6 @@ export default function DataExplorer() {
     }
   }
 
-  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">(
-    "csv"
-  );
-  const [exporting, setExporting] = useState(false);
-
   async function exportData() {
     if (!soql) return;
     setExporting(true);
@@ -413,10 +611,9 @@ export default function DataExplorer() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const ext = exportFormat === "xlsx" ? "xlsx" : exportFormat;
       a.download = `${selectedObject || "export"}-${new Date()
         .toISOString()
-        .slice(0, 10)}.${ext}`;
+        .slice(0, 10)}.${exportFormat}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -435,29 +632,143 @@ export default function DataExplorer() {
     });
   }
 
-  const resultColumns = result
-    ? (() => {
-        const seen = new Set<string>();
-        const cols: string[] = [];
-        for (const r of result.records) {
-          for (const k of Object.keys(r)) {
-            if (k === "attributes" || seen.has(k)) continue;
-            seen.add(k);
-            cols.push(k);
-          }
+  // ---- Saved queries ----
+  function currentBuilderState(): BuilderState {
+    return {
+      selectedObject,
+      columns,
+      filters,
+      logic,
+      orderBy,
+      orderDir,
+      limit,
+      childSelections,
+    };
+  }
+
+  async function saveCurrent() {
+    if (!soql) return;
+    const name = prompt("Save query as:");
+    if (!name || !name.trim()) return;
+    setError(null);
+    try {
+      const res = await fetch("/api/salesforce/saved-queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          objectName: selectedObject,
+          soql,
+          builderState: currentBuilderState(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) setError(data.error || "Failed to save");
+      else await loadSaved();
+    } catch {
+      setError("Network error");
+    }
+  }
+
+  function loadQuery(q: SavedQuery) {
+    if (q.builder_state && q.builder_state.selectedObject) {
+      restoreRef.current = q.builder_state;
+      if (q.builder_state.selectedObject === selectedObject) {
+        // Same object already loaded — apply immediately.
+        const s = q.builder_state;
+        setColumns(s.columns);
+        setFilters(s.filters);
+        setLogic(s.logic);
+        setOrderBy(s.orderBy);
+        setOrderDir(s.orderDir);
+        setLimit(s.limit);
+        setChildSelections(s.childSelections || {});
+        restoreRef.current = null;
+      } else {
+        setObjectFilter("");
+        setSelectedObject(q.builder_state.selectedObject);
+      }
+    }
+  }
+
+  async function deleteSaved(id: string) {
+    if (!confirm("Delete this saved query?")) return;
+    await fetch(`/api/salesforce/saved-queries/${id}`, { method: "DELETE" });
+    await loadSaved();
+  }
+
+  // ---- Results table (flattened) ----
+  const displayRows = useMemo(
+    () => (result ? result.records.map(flattenForDisplay) : []),
+    [result]
+  );
+  const resultColumns = useMemo(() => {
+    const seen = new Set<string>();
+    const cols: string[] = [];
+    for (const r of displayRows) {
+      for (const k of Object.keys(r)) {
+        if (!seen.has(k)) {
+          seen.add(k);
+          cols.push(k);
         }
-        return cols;
-      })()
-    : [];
+      }
+    }
+    return cols;
+  }, [displayRows]);
 
   return (
     <div>
       <h1>Data Explorer</h1>
       <p className="muted">
-        Pick an object, choose columns, add filters — the SOQL is generated for
-        you and you can run or export it.
+        Pick an object, choose columns (including related and child fields), add
+        filters — the SOQL is generated for you and you can run, export, or save
+        it.
       </p>
       {error && <div className="alert error">{error}</div>}
+
+      {/* Saved queries */}
+      <div className="card">
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <h2 style={{ margin: 0 }}>Saved queries</h2>
+          <button
+            className="btn secondary"
+            onClick={saveCurrent}
+            disabled={!soql}
+          >
+            Save current
+          </button>
+        </div>
+        {savedNeedsMigration && (
+          <p className="muted" style={{ marginTop: 10 }}>
+            Run <code>0003_saved_queries.sql</code> in Supabase to enable saving.
+          </p>
+        )}
+        {saved.length > 0 ? (
+          <div className="actions" style={{ marginTop: 12 }}>
+            {saved.map((q) => (
+              <span key={q.id} className="saved-chip">
+                <button className="linkbtn" onClick={() => loadQuery(q)}>
+                  {q.name}
+                </button>
+                <button
+                  className="linkbtn"
+                  onClick={() => deleteSaved(q.id)}
+                  title="Delete"
+                  style={{ marginLeft: 6 }}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          !savedNeedsMigration && (
+            <p className="muted" style={{ marginTop: 10 }}>
+              No saved queries yet. Build one below and click “Save current”.
+            </p>
+          )
+        )}
+      </div>
 
       {/* Object picker */}
       <div className="card">
@@ -470,8 +781,7 @@ export default function DataExplorer() {
           onChange={(e) => setObjectFilter(e.target.value)}
           onBlur={(e) => {
             const match = objects.find(
-              (o) =>
-                o.name.toLowerCase() === e.target.value.trim().toLowerCase()
+              (o) => o.name.toLowerCase() === e.target.value.trim().toLowerCase()
             );
             if (match) {
               setSelectedObject(match.name);
@@ -515,15 +825,12 @@ export default function DataExplorer() {
                   >
                     All
                   </button>
-                  <button
-                    className="btn secondary"
-                    onClick={() => setColumns([])}
-                  >
+                  <button className="btn secondary" onClick={() => setColumns([])}>
                     None
                   </button>
                   <span className="muted">{columns.length} selected</span>
                 </div>
-                <div className="list" style={{ maxHeight: 360 }}>
+                <div className="list" style={{ maxHeight: 300 }}>
                   {filteredFields.map((f) => (
                     <label
                       key={f.name}
@@ -545,6 +852,144 @@ export default function DataExplorer() {
                     </label>
                   ))}
                 </div>
+
+                {/* Relationship (parent) fields */}
+                {referenceFields.length > 0 && (
+                  <details style={{ marginTop: 12 }}>
+                    <summary style={{ cursor: "pointer" }}>
+                      Related (lookup) fields — {referenceFields.length}
+                    </summary>
+                    <div className="list" style={{ maxHeight: 260, marginTop: 8 }}>
+                      {referenceFields.map((rf) => {
+                        const rel = rf.relationshipName as string;
+                        const parent = rf.referenceTo?.[0] as string;
+                        const open = expandedRel.has(rel);
+                        const info = relatedCache[rel];
+                        return (
+                          <div key={rel}>
+                            <div
+                              className="list-item"
+                              onClick={() => toggleRel(rel, parent)}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <span className="lbl">
+                                {open ? "▾" : "▸"} {rel}
+                              </span>{" "}
+                              <span className="api">→ {parent}</span>
+                            </div>
+                            {open &&
+                              (info ? (
+                                info.fields.map((sf) => {
+                                  const col = `${rel}.${sf.name}`;
+                                  return (
+                                    <label
+                                      key={col}
+                                      className="list-item"
+                                      style={{
+                                        display: "flex",
+                                        gap: 8,
+                                        paddingLeft: 24,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={columns.includes(col)}
+                                        onChange={() => toggleColumn(col)}
+                                        style={{ width: "auto" }}
+                                      />
+                                      <span>
+                                        <span className="api">
+                                          {col} · {sf.type}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  );
+                                })
+                              ) : (
+                                <div
+                                  className="list-item api"
+                                  style={{ paddingLeft: 24 }}
+                                >
+                                  Loading…
+                                </div>
+                              ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
+
+                {/* Child relationships (subqueries) */}
+                {childRels.length > 0 && (
+                  <details style={{ marginTop: 12 }}>
+                    <summary style={{ cursor: "pointer" }}>
+                      Child relationships — {childRels.length}
+                    </summary>
+                    <div className="list" style={{ maxHeight: 260, marginTop: 8 }}>
+                      {childRels.map((cr) => {
+                        const rel = cr.relationshipName as string;
+                        const open = expandedChild.has(rel);
+                        const info = childCache[rel];
+                        const sel = childSelections[rel] || [];
+                        return (
+                          <div key={rel}>
+                            <div
+                              className="list-item"
+                              onClick={() => toggleChild(rel, cr.childSObject)}
+                              style={{ cursor: "pointer" }}
+                            >
+                              <span className="lbl">
+                                {open ? "▾" : "▸"} {rel}
+                              </span>{" "}
+                              <span className="api">
+                                → {cr.childSObject}
+                                {sel.length ? ` · ${sel.length} field(s)` : ""}
+                              </span>
+                            </div>
+                            {open &&
+                              (info ? (
+                                info.fields.map((sf) => (
+                                  <label
+                                    key={sf.name}
+                                    className="list-item"
+                                    style={{
+                                      display: "flex",
+                                      gap: 8,
+                                      paddingLeft: 24,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={sel.includes(sf.name)}
+                                      onChange={() =>
+                                        toggleChildField(rel, sf.name)
+                                      }
+                                      style={{ width: "auto" }}
+                                    />
+                                    <span>
+                                      <span className="api">
+                                        {sf.name} · {sf.type}
+                                      </span>
+                                    </span>
+                                  </label>
+                                ))
+                              ) : (
+                                <div
+                                  className="list-item api"
+                                  style={{ paddingLeft: 24 }}
+                                >
+                                  Loading…
+                                </div>
+                              ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
               </>
             )}
           </div>
@@ -575,13 +1020,11 @@ export default function DataExplorer() {
                   onChange={(e) => updateFilter(i, { field: e.target.value })}
                 >
                   <option value="">field…</option>
-                  {fields
-                    .filter((x) => x.filterable !== false)
-                    .map((x) => (
-                      <option key={x.name} value={x.name}>
-                        {x.name}
-                      </option>
-                    ))}
+                  {filterFieldOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
                 <select
                   value={f.operator}
@@ -611,18 +1054,13 @@ export default function DataExplorer() {
             <div className="row" style={{ gap: 10, marginTop: 16 }}>
               <div style={{ flex: 1 }}>
                 <label>Order by</label>
-                <select
-                  value={orderBy}
-                  onChange={(e) => setOrderBy(e.target.value)}
-                >
+                <select value={orderBy} onChange={(e) => setOrderBy(e.target.value)}>
                   <option value="">(none)</option>
-                  {fields
-                    .filter((x) => x.sortable !== false)
-                    .map((x) => (
-                      <option key={x.name} value={x.name}>
-                        {x.name}
-                      </option>
-                    ))}
+                  {sortFieldOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div style={{ width: 90 }}>
@@ -657,6 +1095,9 @@ export default function DataExplorer() {
               <button className="btn secondary" onClick={copySoql}>
                 {copied ? "Copied!" : "Copy"}
               </button>
+              <button className="btn secondary" onClick={saveCurrent} disabled={!soql}>
+                Save
+              </button>
               <button className="btn" onClick={run} disabled={running || !soql}>
                 {running ? "Running…" : "Run"}
               </button>
@@ -670,8 +1111,7 @@ export default function DataExplorer() {
               borderRadius: 8,
               padding: 12,
               overflowX: "auto",
-              fontFamily:
-                '"SF Mono", ui-monospace, Menlo, Consolas, monospace',
+              fontFamily: '"SF Mono", ui-monospace, Menlo, Consolas, monospace',
               fontSize: 13,
               whiteSpace: "pre-wrap",
             }}
@@ -714,10 +1154,10 @@ export default function DataExplorer() {
               </button>
             </div>
           </div>
-          {result.records.length > 0 ? (
+          {displayRows.length > 0 ? (
             <div
               className="table-wrap"
-              style={{ maxHeight: 560, overflowY: "auto" }}
+              style={{ maxHeight: 560, overflowY: "auto", marginTop: 12 }}
             >
               <table>
                 <thead>
@@ -728,11 +1168,11 @@ export default function DataExplorer() {
                   </tr>
                 </thead>
                 <tbody>
-                  {result.records.map((r, i) => (
+                  {displayRows.map((r, i) => (
                     <tr key={i}>
                       {resultColumns.map((c) => (
-                        <td key={c} title={cellValue(r[c])}>
-                          {cellValue(r[c])}
+                        <td key={c} title={r[c] ?? ""}>
+                          {r[c] ?? ""}
                         </td>
                       ))}
                     </tr>

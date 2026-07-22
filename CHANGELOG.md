@@ -3,6 +3,24 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-07-22
+
+### Added
+
+- **Relationship fields in the Data Explorer**:
+  - **Parent (lookup) fields** — expand any reference field to pick fields from
+    the related object (e.g. `Owner.Name`, `Account.Industry`) as columns and
+    filters.
+  - **Child relationships (subqueries)** — expand a child relationship and pick
+    fields to add a `(SELECT … FROM ChildRel)` subquery to the SELECT.
+  - Results are flattened for display (dotted parent columns; child subqueries
+    shown as a row count).
+- **Saved queries** — save the full builder state (object, columns, filters,
+  related/child fields, order, limit) plus the generated SOQL under a name, then
+  reload or delete them. New `saved_queries` table (migration
+  `0003_saved_queries.sql`) and `/api/salesforce/saved-queries` endpoints. If the
+  table isn't migrated yet, the Explorer still works and shows a hint.
+
 ## [0.7.0] - 2026-07-22
 
 ### Added
