@@ -3,6 +3,17 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-07-22
+
+### Added
+
+- **Field metadata dialog** in the Object Explorer — click a field (in the tree
+  or the details table) to open a modal showing its full describe metadata
+  (type, length/precision, nillable, createable/updateable, unique, external id,
+  custom, default value, reference targets, relationship name, help text,
+  picklist values, and every other property). Closes on backdrop click, ✕, or
+  Escape.
+
 ## [0.13.0] - 2026-07-22
 
 ### Added
