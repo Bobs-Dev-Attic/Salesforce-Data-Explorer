@@ -9,12 +9,19 @@ interface GlobalObject {
   custom: boolean;
 }
 
+interface PicklistValue {
+  value: string;
+  label?: string;
+  active?: boolean;
+}
+
 interface SObjectField {
   name: string;
   label: string;
   type: string;
   filterable?: boolean;
   sortable?: boolean;
+  picklistValues?: PicklistValue[];
 }
 
 interface Filter {
@@ -50,10 +57,20 @@ function quote(v: string): string {
   return `'${v.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 }
 
+/** Normalize an <input type="datetime-local"> value to a SOQL datetime literal. */
+function normalizeDateTime(v: string): string {
+  const s = v.trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return `${s}:00Z`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(s)) return `${s}Z`;
+  return s;
+}
+
 function formatValue(type: string | undefined, raw: string, force = false): string {
   const v = raw.trim();
+  const t = (type || "").toLowerCase();
+  if (!force && t === "datetime") return normalizeDateTime(v);
   if (force || needsQuote(type)) return quote(v);
-  return v; // numbers, booleans, dates, datetimes — used as typed
+  return v; // numbers, booleans, dates — used as typed
 }
 
 function buildSoql(params: {
@@ -179,6 +196,9 @@ export default function DataExplorer() {
             type: f.type,
             filterable: f.filterable,
             sortable: f.sortable,
+            picklistValues: (f.picklistValues || []).filter(
+              (p) => p.active !== false
+            ),
           })
         );
         setFields(fs);
@@ -250,6 +270,99 @@ export default function DataExplorer() {
     setFilters((fs) => fs.filter((_, idx) => idx !== i));
   }
 
+  function renderValueInput(f: Filter, i: number) {
+    const fld = fields.find((x) => x.name === f.field);
+    const type = (fld?.type || "").toLowerCase();
+    const isIn = f.operator === "IN" || f.operator === "NOT IN";
+    const set = (v: string) => updateFilter(i, { value: v });
+    const pick = fld?.picklistValues || [];
+
+    if (type === "boolean") {
+      return (
+        <select value={f.value} onChange={(e) => set(e.target.value)}>
+          <option value="">value…</option>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      );
+    }
+    if ((type === "picklist" || type === "multipicklist") && pick.length) {
+      if (isIn) {
+        const selected = f.value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        return (
+          <select
+            multiple
+            value={selected}
+            onChange={(e) =>
+              set(
+                Array.from(e.target.selectedOptions)
+                  .map((o) => o.value)
+                  .join(", ")
+              )
+            }
+            style={{ height: 90 }}
+          >
+            {pick.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label || p.value}
+              </option>
+            ))}
+          </select>
+        );
+      }
+      return (
+        <select value={f.value} onChange={(e) => set(e.target.value)}>
+          <option value="">value…</option>
+          {pick.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label || p.value}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (!isIn && type === "date") {
+      return (
+        <input
+          type="date"
+          value={f.value}
+          onChange={(e) => set(e.target.value)}
+        />
+      );
+    }
+    if (!isIn && type === "datetime") {
+      return (
+        <input
+          type="datetime-local"
+          value={f.value}
+          onChange={(e) => set(e.target.value)}
+        />
+      );
+    }
+    if (
+      !isIn &&
+      ["int", "double", "currency", "percent"].includes(type)
+    ) {
+      return (
+        <input
+          type="number"
+          value={f.value}
+          onChange={(e) => set(e.target.value)}
+        />
+      );
+    }
+    return (
+      <input
+        placeholder={isIn ? "a, b, c" : "value"}
+        value={f.value}
+        onChange={(e) => set(e.target.value)}
+      />
+    );
+  }
+
   async function run() {
     if (!soql) return;
     setRunning(true);
@@ -271,13 +384,25 @@ export default function DataExplorer() {
     }
   }
 
-  async function exportCsv() {
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">(
+    "csv"
+  );
+  const [exporting, setExporting] = useState(false);
+
+  async function exportData() {
     if (!soql) return;
+    setExporting(true);
+    setError(null);
     try {
       const res = await fetch("/api/salesforce/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ soql, maxRecords: 50000 }),
+        body: JSON.stringify({
+          soql,
+          maxRecords: 50000,
+          format: exportFormat,
+          filename: selectedObject || "export",
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -288,15 +413,18 @@ export default function DataExplorer() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
+      const ext = exportFormat === "xlsx" ? "xlsx" : exportFormat;
       a.download = `${selectedObject || "export"}-${new Date()
         .toISOString()
-        .slice(0, 10)}.csv`;
+        .slice(0, 10)}.${ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
       setError("Export failed");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -466,13 +594,7 @@ export default function DataExplorer() {
                     </option>
                   ))}
                 </select>
-                <input
-                  placeholder={
-                    f.operator.includes("IN") ? "a, b, c" : "value"
-                  }
-                  value={f.value}
-                  onChange={(e) => updateFilter(i, { value: e.target.value })}
-                />
+                <div style={{ flex: 1 }}>{renderValueInput(f, i)}</div>
                 <button
                   className="linkbtn"
                   onClick={() => removeFilter(i)}
@@ -535,9 +657,6 @@ export default function DataExplorer() {
               <button className="btn secondary" onClick={copySoql}>
                 {copied ? "Copied!" : "Copy"}
               </button>
-              <button className="btn secondary" onClick={exportCsv}>
-                Export CSV
-              </button>
               <button className="btn" onClick={run} disabled={running || !soql}>
                 {running ? "Running…" : "Run"}
               </button>
@@ -565,10 +684,36 @@ export default function DataExplorer() {
       {/* Results */}
       {result && (
         <div className="card">
-          <p className="muted">
-            {result.records.length} of {result.totalSize} record(s)
-            {!result.done && " (truncated)"}
-          </p>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "center" }}
+          >
+            <p className="muted" style={{ margin: 0 }}>
+              {result.records.length} of {result.totalSize} record(s)
+              {!result.done && " (truncated)"}
+            </p>
+            <div className="row" style={{ gap: 8 }}>
+              <span className="muted">Export</span>
+              <select
+                value={exportFormat}
+                onChange={(e) =>
+                  setExportFormat(e.target.value as "csv" | "xlsx" | "json")
+                }
+                style={{ width: "auto" }}
+              >
+                <option value="csv">CSV (.csv)</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+                <option value="json">JSON (.json)</option>
+              </select>
+              <button
+                className="btn secondary"
+                onClick={exportData}
+                disabled={exporting}
+              >
+                {exporting ? "Exporting…" : "Download"}
+              </button>
+            </div>
+          </div>
           {result.records.length > 0 ? (
             <div
               className="table-wrap"

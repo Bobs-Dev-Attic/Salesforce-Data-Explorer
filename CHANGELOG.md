@@ -3,6 +3,20 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-07-22
+
+### Added
+
+- **Type-aware filter inputs** in the Data Explorer: **date** and
+  **datetime** pickers for date fields, **dropdowns** for picklist fields
+  (single-select, or multi-select for `IN` / `NOT IN`), a true/false dropdown
+  for booleans, and numeric inputs for number fields. SOQL datetime literals
+  are normalized automatically.
+- **Multi-format export** on the results: choose **CSV**, **Excel (.xlsx)**, or
+  **JSON** and download. Excel files are produced by a small, dependency-free
+  OOXML/ZIP writer (`src/lib/xlsx.ts`). The export endpoint now accepts a
+  `format` parameter.
+
 ## [0.6.0] - 2026-07-22
 
 ### Added

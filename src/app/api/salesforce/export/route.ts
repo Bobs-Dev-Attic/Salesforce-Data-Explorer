@@ -1,7 +1,23 @@
 import { getActiveConnection, runSoql } from "@/lib/salesforce";
 import { isAuthenticated } from "@/lib/session";
+import { buildXlsx } from "@/lib/xlsx";
 
 export const runtime = "nodejs";
+
+/** Ordered union of column keys across flattened rows. */
+function columnsOf(rows: Record<string, string>[]): string[] {
+  const columns: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    for (const k of Object.keys(row)) {
+      if (!seen.has(k)) {
+        seen.add(k);
+        columns.push(k);
+      }
+    }
+  }
+  return columns;
+}
 
 /** Flatten a Salesforce record into scalar columns, dropping `attributes`. */
 function flatten(
@@ -28,18 +44,7 @@ function csvCell(v: string): string {
   return v;
 }
 
-function toCsv(records: Record<string, unknown>[]): string {
-  const rows = records.map((r) => flatten(r));
-  const columns: string[] = [];
-  const seen = new Set<string>();
-  for (const row of rows) {
-    for (const k of Object.keys(row)) {
-      if (!seen.has(k)) {
-        seen.add(k);
-        columns.push(k);
-      }
-    }
-  }
+function toCsv(rows: Record<string, string>[], columns: string[]): string {
   const lines = [columns.map(csvCell).join(",")];
   for (const row of rows) {
     lines.push(columns.map((c) => csvCell(row[c] ?? "")).join(","));
@@ -57,6 +62,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const soql = String(body.soql || "").trim();
   const maxRecords = Math.min(Number(body.maxRecords) || 10000, 50000);
+  const format = ["csv", "json", "xlsx"].includes(body.format)
+    ? (body.format as "csv" | "json" | "xlsx")
+    : "csv";
+  const baseName = String(body.filename || "export").replace(/[^a-zA-Z0-9_-]/g, "");
   if (!soql) {
     return new Response(JSON.stringify({ error: "Missing soql" }), {
       status: 400,
@@ -74,13 +83,49 @@ export async function POST(req: Request) {
 
   try {
     const result = await runSoql(conn.id, soql, maxRecords);
-    const csv = toCsv(result.records);
-    const filename = `export-${new Date().toISOString().slice(0, 10)}.csv`;
+    const rows = result.records.map((r) => flatten(r));
+    const columns = columnsOf(rows);
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `${baseName || "export"}-${date}`;
+
+    if (format === "json") {
+      const json = JSON.stringify(
+        rows.map((row) => {
+          const obj: Record<string, string> = {};
+          for (const c of columns) obj[c] = row[c] ?? "";
+          return obj;
+        }),
+        null,
+        2
+      );
+      return new Response(json, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${filename}.json"`,
+        },
+      });
+    }
+
+    if (format === "xlsx") {
+      const matrix = rows.map((row) => columns.map((c) => row[c] ?? ""));
+      const buf = buildXlsx(columns, matrix, baseName || "Data");
+      return new Response(new Uint8Array(buf), {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${filename}.xlsx"`,
+        },
+      });
+    }
+
+    const csv = toCsv(rows, columns);
     return new Response(csv, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `attachment; filename="${filename}.csv"`,
       },
     });
   } catch (e) {
