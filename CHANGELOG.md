@@ -3,6 +3,18 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-07-22
+
+### Added
+
+- **Data Explorer** — a visual query builder. Pick a queryable object from a
+  searchable list, check the columns to return, add filter rows (field /
+  operator / value, combined with AND or OR), and set order-by and limit. The
+  **SOQL is generated live** as you build, with Copy, Run, and Export-CSV
+  actions. Values are quoted per field type automatically. New **Explorer** nav
+  tab and dashboard button. Reuses the existing describe + query endpoints, so
+  no backend or schema changes.
+
 ## [0.5.3] - 2026-07-22
 
 ### Fixed

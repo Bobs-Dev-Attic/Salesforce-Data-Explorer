@@ -48,7 +48,10 @@ export default async function HomePage({
               ) : null}
             </p>
             <div className="row" style={{ marginTop: 12 }}>
-              <Link className="btn" href="/query">
+              <Link className="btn" href="/explorer">
+                Data Explorer
+              </Link>
+              <Link className="btn secondary" href="/query">
                 Run SOQL
               </Link>
               <Link className="btn secondary" href="/objects">
@@ -82,6 +85,7 @@ export default async function HomePage({
       <div className="card">
         <h2>What you can do</h2>
         <ul className="muted">
+          <li>Build queries visually in the Data Explorer — no SOQL required.</li>
           <li>Run ad-hoc SOQL queries and browse results in a grid.</li>
           <li>Explore every SObject and its fields (metadata is cached).</li>
           <li>Export query results to CSV.</li>
