@@ -118,6 +118,30 @@ export default function ConnectionsManager({
     }
   }
 
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+
+  async function connectClientCreds(id: string) {
+    setConnectingId(id);
+    setError(null);
+    try {
+      const res = await fetch("/api/salesforce/connect-client-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Client Credentials connection failed");
+      } else {
+        await load();
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setConnectingId(null);
+    }
+  }
+
   async function deleteApp(id: string) {
     if (
       !confirm(
@@ -302,6 +326,16 @@ export default function ConnectionsManager({
                       >
                         Connect org
                       </a>{" "}
+                      <button
+                        className="btn secondary"
+                        onClick={() => connectClientCreds(a.id)}
+                        disabled={connectingId === a.id}
+                        title="Server-to-server; no browser redirect. Requires Client Credentials Flow enabled on the Connected App."
+                      >
+                        {connectingId === a.id
+                          ? "Connecting…"
+                          : "Connect (Client Credentials)"}
+                      </button>{" "}
                       <button
                         className="linkbtn"
                         onClick={() => openEdit(a)}

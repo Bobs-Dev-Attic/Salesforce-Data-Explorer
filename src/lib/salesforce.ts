@@ -199,6 +199,76 @@ export async function exchangeCodeForTokens(
   return { tokens, app };
 }
 
+/**
+ * Marker stored in place of a refresh token for connections created via the
+ * server-to-server Client Credentials flow (which issues no refresh token).
+ * getAccessToken re-runs the client_credentials grant to mint fresh tokens.
+ */
+const CLIENT_CREDENTIALS_SENTINEL = "__client_credentials__";
+
+/** Parse "https://.../id/<orgId>/<userId>" -> orgId. */
+function parseOrgId(identityUrl: string): string | null {
+  try {
+    const parts = new URL(identityUrl).pathname.split("/").filter(Boolean);
+    const idx = parts.indexOf("id");
+    return idx >= 0 && parts[idx + 1] ? parts[idx + 1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Server-to-server token via the Client Credentials grant (no redirect_uri). */
+export async function clientCredentialsToken(
+  appId: string
+): Promise<{ access_token: string; instance_url: string; id?: string }> {
+  const app = await getOAuthAppWithSecret(appId);
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: app.client_id,
+    client_secret: app.client_secret,
+  });
+  const json = await postToken(app.login_url, body);
+  return {
+    access_token: json.access_token,
+    instance_url: json.instance_url,
+    id: json.id,
+  };
+}
+
+/**
+ * Connect an org using the Client Credentials flow and save it as a
+ * connection. No browser round-trip / callback is involved.
+ */
+export async function connectClientCredentials(
+  appId: string
+): Promise<StoredConnection> {
+  const tok = await clientCredentialsToken(appId);
+  let username: string | null = null;
+  let orgId: string | null = null;
+  if (tok.id) {
+    orgId = parseOrgId(tok.id);
+    try {
+      const idRes = await fetch(tok.id, {
+        headers: { Authorization: `Bearer ${tok.access_token}` },
+      });
+      if (idRes.ok) {
+        const identity = (await idRes.json()) as { username?: string };
+        username = identity.username ?? null;
+      }
+    } catch {
+      // non-fatal
+    }
+  }
+  return saveConnection({
+    oauthAppId: appId,
+    orgId,
+    username: username ?? "client-credentials",
+    instanceUrl: tok.instance_url,
+    refreshToken: CLIENT_CREDENTIALS_SENTINEL,
+    label: username ?? "Client Credentials",
+  });
+}
+
 async function refreshAccessToken(
   appId: string,
   refreshToken: string
@@ -343,10 +413,10 @@ export async function getAccessToken(
     );
   }
   const refreshToken = decrypt(data.refresh_token_encrypted as string);
-  const refreshed = await refreshAccessToken(
-    data.oauth_app_id as string,
-    refreshToken
-  );
+  const refreshed =
+    refreshToken === CLIENT_CREDENTIALS_SENTINEL
+      ? await clientCredentialsToken(data.oauth_app_id as string)
+      : await refreshAccessToken(data.oauth_app_id as string, refreshToken);
   if (refreshed.instance_url && refreshed.instance_url !== data.instance_url) {
     await supabase
       .from("salesforce_connections")

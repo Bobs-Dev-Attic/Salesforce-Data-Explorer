@@ -3,6 +3,18 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-07-22
+
+### Added
+
+- **Client Credentials connection** — connect an org server-to-server (like the
+  Postman `grant_type=client_credentials` flow) with **no browser redirect and no
+  callback URL**, sidestepping `redirect_uri` configuration entirely. Requires the
+  Connected App to have "Enable Client Credentials Flow" with a run-as user.
+  Access tokens are minted on demand from the stored (encrypted) client secret;
+  no refresh token is used. New **"Connect (Client Credentials)"** button on each
+  Connected App and endpoint `POST /api/salesforce/connect-client-credentials`.
+
 ## [0.4.1] - 2026-07-22
 
 ### Added
