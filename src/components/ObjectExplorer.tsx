@@ -45,11 +45,19 @@ export default function ObjectExplorer() {
   >({});
   const [selected, setSelected] = useState<string | null>(null);
 
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(
-    new Set(["standard"])
+  // Full tree expansion state persists across sessions (arrays for JSON).
+  const [expandedCats, setExpandedCats] = usePersistentState<string[]>(
+    "sfde.objects.cats",
+    ["standard"]
   );
-  const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set());
-  const [expandedSub, setExpandedSub] = useState<Set<string>>(new Set());
+  const [expandedObjects, setExpandedObjects] = usePersistentState<string[]>(
+    "sfde.objects.expanded",
+    []
+  );
+  const [expandedSub, setExpandedSub] = usePersistentState<string[]>(
+    "sfde.objects.sub",
+    []
+  );
   const restoredRef = useRef(false);
 
   useEffect(() => {
@@ -69,10 +77,19 @@ export default function ObjectExplorer() {
     const last = readPersisted<string>("sfde.objects.selected");
     if (last && !restoredRef.current) {
       restoredRef.current = true;
-      openObject(last, true);
+      selectObject(last);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load describes for any objects that are expanded (e.g. restored from a
+  // previous session) so their tree sub-nodes render.
+  useEffect(() => {
+    for (const name of expandedObjects) {
+      if (!describeCache[name]) ensureDescribe(name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedObjects]);
 
   async function ensureDescribe(name: string) {
     if (describeCache[name]) return;
@@ -109,37 +126,21 @@ export default function ObjectExplorer() {
     ensureDescribe(name);
   }
 
-  async function openObject(name: string, expand: boolean) {
-    selectObject(name);
-    if (expand) {
-      setExpandedObjects((s) => new Set(s).add(name));
-    }
-  }
-
   function toggleCat(cat: string) {
-    setExpandedCats((s) => {
-      const n = new Set(s);
-      n.has(cat) ? n.delete(cat) : n.add(cat);
-      return n;
-    });
+    setExpandedCats((a) =>
+      a.includes(cat) ? a.filter((x) => x !== cat) : [...a, cat]
+    );
   }
   function toggleObject(name: string) {
-    setExpandedObjects((s) => {
-      const n = new Set(s);
-      if (n.has(name)) n.delete(name);
-      else {
-        n.add(name);
-        ensureDescribe(name);
-      }
-      return n;
-    });
+    setExpandedObjects((a) =>
+      a.includes(name) ? a.filter((x) => x !== name) : [...a, name]
+    );
+    ensureDescribe(name);
   }
   function toggleSub(key: string) {
-    setExpandedSub((s) => {
-      const n = new Set(s);
-      n.has(key) ? n.delete(key) : n.add(key);
-      return n;
-    });
+    setExpandedSub((a) =>
+      a.includes(key) ? a.filter((x) => x !== key) : [...a, key]
+    );
   }
 
   const { standard, custom } = useMemo(() => {
@@ -201,7 +202,7 @@ export default function ObjectExplorer() {
   }
 
   function ObjectNode({ o }: { o: GlobalObject }) {
-    const open = expandedObjects.has(o.name);
+    const open = expandedObjects.includes(o.name);
     const desc = describeCache[o.name];
     const fieldsKey = `${o.name}:fields`;
     const childKey = `${o.name}:children`;
@@ -229,14 +230,14 @@ export default function ObjectExplorer() {
               <>
                 <Row
                   depth={2}
-                  twist={expandedSub.has(fieldsKey) ? "open" : "closed"}
+                  twist={expandedSub.includes(fieldsKey) ? "open" : "closed"}
                   icon="🗂️"
                   onClick={() => toggleSub(fieldsKey)}
                   onTwist={() => toggleSub(fieldsKey)}
                 >
                   Fields <span className="api">{desc.fields.length}</span>
                 </Row>
-                {expandedSub.has(fieldsKey) &&
+                {expandedSub.includes(fieldsKey) &&
                   desc.fields.map((fld) => (
                     <Row key={fld.name} depth={3} icon={iconForField(fld)}>
                       {fld.name}
@@ -246,7 +247,7 @@ export default function ObjectExplorer() {
 
                 <Row
                   depth={2}
-                  twist={expandedSub.has(childKey) ? "open" : "closed"}
+                  twist={expandedSub.includes(childKey) ? "open" : "closed"}
                   icon="🧬"
                   onClick={() => toggleSub(childKey)}
                   onTwist={() => toggleSub(childKey)}
@@ -254,7 +255,7 @@ export default function ObjectExplorer() {
                   Child Relationships{" "}
                   <span className="api">{desc.childRelationships.length}</span>
                 </Row>
-                {expandedSub.has(childKey) &&
+                {expandedSub.includes(childKey) &&
                   desc.childRelationships.map((cr) => (
                     <Row key={cr.relationshipName} depth={3} icon="🔗">
                       {cr.relationshipName}
@@ -293,26 +294,26 @@ export default function ObjectExplorer() {
           <div className="tree" style={{ maxHeight: 560, overflow: "auto" }}>
             <Row
               depth={0}
-              twist={expandedCats.has("standard") ? "open" : "closed"}
+              twist={expandedCats.includes("standard") ? "open" : "closed"}
               icon="📦"
               onClick={() => toggleCat("standard")}
               onTwist={() => toggleCat("standard")}
             >
               Standard Objects <span className="api">{standard.length}</span>
             </Row>
-            {expandedCats.has("standard") &&
+            {expandedCats.includes("standard") &&
               standard.map((o) => <ObjectNode key={o.name} o={o} />)}
 
             <Row
               depth={0}
-              twist={expandedCats.has("custom") ? "open" : "closed"}
+              twist={expandedCats.includes("custom") ? "open" : "closed"}
               icon="🧩"
               onClick={() => toggleCat("custom")}
               onTwist={() => toggleCat("custom")}
             >
               Custom Objects <span className="api">{custom.length}</span>
             </Row>
-            {expandedCats.has("custom") &&
+            {expandedCats.includes("custom") &&
               custom.map((o) => <ObjectNode key={o.name} o={o} />)}
           </div>
         </div>

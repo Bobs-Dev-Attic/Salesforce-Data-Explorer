@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.1] - 2026-07-22
+
+### Added
+
+- **Full tree-state persistence** in the Object Explorer — which folders,
+  objects, and Fields/Child-Relationships sub-nodes are expanded is now saved to
+  `localStorage` and restored on return (surviving logout/session timeout), so
+  the tree reopens exactly as you left it. Expanded objects auto-load their
+  describes on restore.
+
 ## [0.11.0] - 2026-07-22
 
 ### Changed
