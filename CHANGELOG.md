@@ -3,6 +3,18 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-07-22
+
+### Added
+
+- **OAuth diagnostics endpoint** `GET /api/salesforce/debug` (app-auth gated):
+  reports the exact `redirect_uri` the app sends, the effective `APP_BASE_URL`,
+  which env vars are present (booleans only, never values), and every saved
+  Connected App's Consumer Key + authorize URL — to quickly resolve
+  `redirect_uri_mismatch` and configuration issues. No secrets are exposed.
+- Server-side logging of the OAuth login `redirect_uri`/`client_id` and of
+  callback token-exchange failures, visible in the Vercel runtime logs.
+
 ## [0.4.0] - 2026-07-22
 
 ### Added

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { authorizeUrl, getOAuthApp } from "@/lib/salesforce";
+import { authorizeUrl, getOAuthApp, redirectUri } from "@/lib/salesforce";
 import { isAuthenticated } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -28,7 +28,19 @@ export async function GET(req: Request) {
 
   // CSRF state echoed back on callback and matched to a cookie.
   const state = crypto.randomBytes(16).toString("hex");
-  const res = NextResponse.redirect(authorizeUrl(app, state));
+  const authUrl = authorizeUrl(app, state);
+  // Diagnostic: surface the exact redirect_uri/client_id in the runtime logs.
+  console.log(
+    "[sf_oauth_login]",
+    JSON.stringify({
+      appId,
+      label: app.label,
+      login_url: app.login_url,
+      client_id: app.client_id,
+      redirect_uri: redirectUri(),
+    })
+  );
+  const res = NextResponse.redirect(authUrl);
   const cookieOpts = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

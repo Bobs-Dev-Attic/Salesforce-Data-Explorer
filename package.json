@@ -1,6 +1,6 @@
 {
   "name": "salesforce-data-explorer",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Web app to securely connect to Salesforce, run SOQL queries, explore object data, export and import via the Bulk API.",
   "scripts": {
