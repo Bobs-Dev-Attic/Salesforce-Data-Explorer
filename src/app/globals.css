@@ -392,6 +392,53 @@ td.actions-cell {
   color: var(--danger);
 }
 
+/* Windows-Explorer-style object tree */
+.grid-tree {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
+}
+@media (max-width: 820px) {
+  .grid-tree {
+    grid-template-columns: 1fr;
+  }
+}
+.tree {
+  font-size: 13px;
+  user-select: none;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tree-row:hover {
+  background: var(--panel-2);
+}
+.tree-row.selected {
+  background: rgba(43, 140, 255, 0.16);
+}
+.tree-twist {
+  width: 14px;
+  flex: 0 0 14px;
+  text-align: center;
+  color: var(--muted);
+}
+.tree-icon {
+  width: 18px;
+  flex: 0 0 18px;
+  text-align: center;
+}
+.tree-label .api {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
 .saved-chip {
   display: inline-flex;
   align-items: center;
