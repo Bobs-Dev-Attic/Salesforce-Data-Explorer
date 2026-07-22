@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { isAuthenticated } from "@/lib/session";
+import GlobalProgress from "@/components/GlobalProgress";
 import pkg from "../../package.json";
 
 const appVersion = pkg.version;
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <GlobalProgress />
         <header className="topbar">
           <Link href="/" className="brand">
             ⚡ Salesforce Data Explorer
