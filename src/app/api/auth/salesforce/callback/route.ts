@@ -13,7 +13,6 @@ function appUrl(path: string): URL {
 function parseOrgId(identityUrl: string): string | null {
   try {
     const parts = new URL(identityUrl).pathname.split("/").filter(Boolean);
-    // ["id", orgId, userId]
     const idx = parts.indexOf("id");
     return idx >= 0 && parts[idx + 1] ? parts[idx + 1] : null;
   } catch {
@@ -31,29 +30,34 @@ export async function GET(req: Request) {
   if (error) {
     const desc = url.searchParams.get("error_description") || error;
     return NextResponse.redirect(
-      appUrl(`/?sf_error=${encodeURIComponent(desc)}`)
+      appUrl(`/connections?error=${encodeURIComponent(desc)}`)
     );
   }
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const expectedState = cookies().get("sf_oauth_state")?.value;
+  const appId = cookies().get("sf_oauth_app_id")?.value;
 
   if (!code || !state || !expectedState || state !== expectedState) {
     return NextResponse.redirect(
-      appUrl(`/?sf_error=${encodeURIComponent("Invalid OAuth state")}`)
+      appUrl(`/connections?error=${encodeURIComponent("Invalid OAuth state")}`)
+    );
+  }
+  if (!appId) {
+    return NextResponse.redirect(
+      appUrl(`/connections?error=${encodeURIComponent("Missing Connected App reference")}`)
     );
   }
 
   try {
-    const tokens = await exchangeCodeForTokens(code);
+    const { tokens } = await exchangeCodeForTokens(appId, code);
     if (!tokens.refresh_token) {
       throw new Error(
-        "No refresh_token returned — ensure the Connected App requests the 'refresh_token' scope"
+        "No refresh_token returned — ensure the Connected App requests the 'refresh_token' / 'offline_access' scope"
       );
     }
 
-    // Fetch the identity to get a friendly username.
     let username: string | null = null;
     try {
       const idRes = await fetch(tokens.id, {
@@ -68,17 +72,21 @@ export async function GET(req: Request) {
     }
 
     await saveConnection({
+      oauthAppId: appId,
       orgId: parseOrgId(tokens.id),
       username,
       instanceUrl: tokens.instance_url,
       refreshToken: tokens.refresh_token,
     });
 
-    const res = NextResponse.redirect(appUrl("/?connected=1"));
+    const res = NextResponse.redirect(appUrl("/connections?connected=1"));
     res.cookies.set("sf_oauth_state", "", { path: "/", maxAge: 0 });
+    res.cookies.set("sf_oauth_app_id", "", { path: "/", maxAge: 0 });
     return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Connection failed";
-    return NextResponse.redirect(appUrl(`/?sf_error=${encodeURIComponent(msg)}`));
+    return NextResponse.redirect(
+      appUrl(`/connections?error=${encodeURIComponent(msg)}`)
+    );
   }
 }

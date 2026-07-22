@@ -28,6 +28,7 @@ export default function RootLayout({
               <Link href="/query">SOQL</Link>
               <Link href="/objects">Objects</Link>
               <Link href="/bulk">Bulk</Link>
+              <Link href="/connections">Connections</Link>
               <form action="/api/app-auth/logout" method="post" className="inline">
                 <button type="submit" className="linkbtn">
                   Lock

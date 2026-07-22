@@ -4,41 +4,125 @@ import { decrypt, encrypt } from "./crypto";
 /**
  * Salesforce REST + OAuth helpers.
  *
+ * Connected App credentials (login URL, consumer key/secret) are registered by
+ * the user in-app and stored in `salesforce_oauth_apps` (secret encrypted).
+ * Each saved connection references the app it was authorized with, so token
+ * refresh uses the correct client credentials. Multiple connections may be
+ * saved; one is marked active at a time.
+ *
  * OAuth 2.0 Web Server (authorization code) flow:
- *   1. Redirect user to /services/oauth2/authorize
+ *   1. Redirect user to <loginUrl>/services/oauth2/authorize
  *   2. Salesforce redirects back with ?code=...
  *   3. Exchange code for access_token + refresh_token (server side)
  *   4. Store the encrypted refresh_token; mint fresh access tokens on demand.
  */
 
 const API_VERSION = "v61.0";
-
-export function loginBaseUrl(): string {
-  return process.env.SALESFORCE_LOGIN_URL || "https://login.salesforce.com";
-}
+const DEFAULT_SCOPE = "api refresh_token offline_access";
 
 export function redirectUri(): string {
   const base = process.env.APP_BASE_URL || "http://localhost:3000";
   return `${base.replace(/\/$/, "")}/api/auth/salesforce/callback`;
 }
 
-export function authorizeUrl(state: string): string {
-  const clientId = requireEnv("SALESFORCE_CLIENT_ID");
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: clientId,
-    redirect_uri: redirectUri(),
-    scope: "api refresh_token offline_access",
-    state,
-  });
-  return `${loginBaseUrl()}/services/oauth2/authorize?${params.toString()}`;
+// ------------------------------------------------------------------
+// OAuth apps (Connected App credentials)
+// ------------------------------------------------------------------
+
+export interface OAuthApp {
+  id: string;
+  label: string;
+  login_url: string;
+  client_id: string;
 }
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set`);
-  return v;
+interface OAuthAppWithSecret extends OAuthApp {
+  client_secret: string;
 }
+
+export async function listOAuthApps(): Promise<OAuthApp[]> {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("salesforce_oauth_apps")
+    .select("id, label, login_url, client_id")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data as OAuthApp[]) ?? [];
+}
+
+export async function createOAuthApp(params: {
+  label: string;
+  loginUrl: string;
+  clientId: string;
+  clientSecret: string;
+}): Promise<OAuthApp> {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("salesforce_oauth_apps")
+    .insert({
+      label: params.label,
+      login_url: params.loginUrl,
+      client_id: params.clientId,
+      client_secret_encrypted: encrypt(params.clientSecret),
+    })
+    .select("id, label, login_url, client_id")
+    .single();
+  if (error) throw new Error(`Failed to save app: ${error.message}`);
+  return data as OAuthApp;
+}
+
+export async function deleteOAuthApp(id: string): Promise<void> {
+  const supabase = getAdminClient();
+  const { error } = await supabase
+    .from("salesforce_oauth_apps")
+    .delete()
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function getOAuthApp(id: string): Promise<OAuthApp | null> {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("salesforce_oauth_apps")
+    .select("id, label, login_url, client_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as OAuthApp) ?? null;
+}
+
+async function getOAuthAppWithSecret(id: string): Promise<OAuthAppWithSecret> {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("salesforce_oauth_apps")
+    .select("id, label, login_url, client_id, client_secret_encrypted")
+    .eq("id", id)
+    .single();
+  if (error || !data) throw new Error("Connected App not found");
+  return {
+    id: data.id as string,
+    label: data.label as string,
+    login_url: data.login_url as string,
+    client_id: data.client_id as string,
+    client_secret: decrypt(data.client_secret_encrypted as string),
+  };
+}
+
+export function authorizeUrl(app: OAuthApp, state: string): string {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: app.client_id,
+    redirect_uri: redirectUri(),
+    scope: DEFAULT_SCOPE,
+    state,
+  });
+  const base = app.login_url.replace(/\/$/, "");
+  return `${base}/services/oauth2/authorize?${params.toString()}`;
+}
+
+// ------------------------------------------------------------------
+// Token exchange / refresh
+// ------------------------------------------------------------------
 
 interface SalesforceTokenResponse {
   access_token: string;
@@ -49,49 +133,57 @@ interface SalesforceTokenResponse {
   issued_at?: string;
 }
 
-/** Exchange an authorization code for tokens. */
-export async function exchangeCodeForTokens(
-  code: string
+async function postToken(
+  loginUrl: string,
+  body: URLSearchParams
 ): Promise<SalesforceTokenResponse> {
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    code,
-    client_id: requireEnv("SALESFORCE_CLIENT_ID"),
-    client_secret: requireEnv("SALESFORCE_CLIENT_SECRET"),
-    redirect_uri: redirectUri(),
-  });
-  const res = await fetch(`${loginBaseUrl()}/services/oauth2/token`, {
+  const base = loginUrl.replace(/\/$/, "");
+  const res = await fetch(`${base}/services/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
   if (!res.ok) {
-    throw new Error(`Token exchange failed: ${res.status} ${await res.text()}`);
+    throw new Error(`Salesforce token request failed: ${res.status} ${await res.text()}`);
   }
   return (await res.json()) as SalesforceTokenResponse;
 }
 
-/** Use a refresh token to mint a new access token. */
+/** Exchange an authorization code for tokens (uses the app's secret). */
+export async function exchangeCodeForTokens(
+  appId: string,
+  code: string
+): Promise<{ tokens: SalesforceTokenResponse; app: OAuthApp }> {
+  const app = await getOAuthAppWithSecret(appId);
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: app.client_id,
+    client_secret: app.client_secret,
+    redirect_uri: redirectUri(),
+  });
+  const tokens = await postToken(app.login_url, body);
+  return { tokens, app };
+}
+
 async function refreshAccessToken(
+  appId: string,
   refreshToken: string
 ): Promise<{ access_token: string; instance_url: string }> {
+  const app = await getOAuthAppWithSecret(appId);
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: requireEnv("SALESFORCE_CLIENT_ID"),
-    client_secret: requireEnv("SALESFORCE_CLIENT_SECRET"),
+    client_id: app.client_id,
+    client_secret: app.client_secret,
   });
-  const res = await fetch(`${loginBaseUrl()}/services/oauth2/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  if (!res.ok) {
-    throw new Error(`Token refresh failed: ${res.status} ${await res.text()}`);
-  }
-  const json = (await res.json()) as SalesforceTokenResponse;
+  const json = await postToken(app.login_url, body);
   return { access_token: json.access_token, instance_url: json.instance_url };
 }
+
+// ------------------------------------------------------------------
+// Connections
+// ------------------------------------------------------------------
 
 export interface StoredConnection {
   id: string;
@@ -99,10 +191,13 @@ export interface StoredConnection {
   username: string | null;
   instance_url: string;
   label: string | null;
+  is_active: boolean;
+  oauth_app_id: string | null;
 }
 
-/** Persist a new connection (encrypting the refresh token first). */
+/** Persist a new connection (encrypting the refresh token first) and make it active. */
 export async function saveConnection(params: {
+  oauthAppId: string;
   orgId: string | null;
   username: string | null;
   instanceUrl: string;
@@ -110,12 +205,12 @@ export async function saveConnection(params: {
   label?: string | null;
 }): Promise<StoredConnection> {
   const supabase = getAdminClient();
-  const refresh_token_encrypted = encrypt(params.refreshToken);
   const row = {
+    oauth_app_id: params.oauthAppId,
     org_id: params.orgId,
     username: params.username,
     instance_url: params.instanceUrl,
-    refresh_token_encrypted,
+    refresh_token_encrypted: encrypt(params.refreshToken),
     label: params.label ?? params.username ?? params.instanceUrl,
     is_active: true,
   };
@@ -123,24 +218,58 @@ export async function saveConnection(params: {
   const { data, error } = await supabase
     .from("salesforce_connections")
     .upsert(row, { onConflict: "org_id" })
-    .select("id, org_id, username, instance_url, label")
+    .select("id, org_id, username, instance_url, label, is_active, oauth_app_id")
     .single();
   if (error) throw new Error(`Failed to save connection: ${error.message}`);
-  return data as StoredConnection;
+  const saved = data as StoredConnection;
+  await setActiveConnection(saved.id);
+  return saved;
 }
 
-/** Fetch the active connection (single-user: most recently updated). */
+export async function listConnections(): Promise<StoredConnection[]> {
+  const supabase = getAdminClient();
+  const { data, error } = await supabase
+    .from("salesforce_connections")
+    .select("id, org_id, username, instance_url, label, is_active, oauth_app_id")
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data as StoredConnection[]) ?? [];
+}
+
 export async function getActiveConnection(): Promise<StoredConnection | null> {
   const supabase = getAdminClient();
   const { data, error } = await supabase
     .from("salesforce_connections")
-    .select("id, org_id, username, instance_url, label")
+    .select("id, org_id, username, instance_url, label, is_active, oauth_app_id")
     .eq("is_active", true)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return (data as StoredConnection) ?? null;
+  if (data) return data as StoredConnection;
+  // Fallback: no row flagged active — use the most recent connection, if any.
+  const { data: latest } = await supabase
+    .from("salesforce_connections")
+    .select("id, org_id, username, instance_url, label, is_active, oauth_app_id")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (latest as StoredConnection) ?? null;
+}
+
+/** Mark one connection active and clear the flag on all others. */
+export async function setActiveConnection(connectionId: string): Promise<void> {
+  const supabase = getAdminClient();
+  const { error: clearErr } = await supabase
+    .from("salesforce_connections")
+    .update({ is_active: false })
+    .neq("id", connectionId);
+  if (clearErr) throw new Error(clearErr.message);
+  const { error } = await supabase
+    .from("salesforce_connections")
+    .update({ is_active: true })
+    .eq("id", connectionId);
+  if (error) throw new Error(error.message);
 }
 
 export async function disconnect(connectionId: string): Promise<void> {
@@ -159,13 +288,20 @@ export async function getAccessToken(
   const supabase = getAdminClient();
   const { data, error } = await supabase
     .from("salesforce_connections")
-    .select("refresh_token_encrypted, instance_url")
+    .select("refresh_token_encrypted, instance_url, oauth_app_id")
     .eq("id", connectionId)
     .single();
   if (error || !data) throw new Error("Connection not found");
+  if (!data.oauth_app_id) {
+    throw new Error(
+      "This connection is missing its Connected App reference — please reconnect the org."
+    );
+  }
   const refreshToken = decrypt(data.refresh_token_encrypted as string);
-  const refreshed = await refreshAccessToken(refreshToken);
-  // instance_url can change (e.g. after a My Domain migration); keep it fresh.
+  const refreshed = await refreshAccessToken(
+    data.oauth_app_id as string,
+    refreshToken
+  );
   if (refreshed.instance_url && refreshed.instance_url !== data.instance_url) {
     await supabase
       .from("salesforce_connections")

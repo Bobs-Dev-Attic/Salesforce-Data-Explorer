@@ -36,7 +36,12 @@ In Salesforce Setup → **App Manager → New Connected App**:
   (and `http://localhost:3000/api/auth/salesforce/callback` for local dev).
 - **OAuth Scopes:** `Manage user data via APIs (api)`, `Perform requests at any
   time (refresh_token, offline_access)`.
-- Save, then copy the **Consumer Key** (client id) and **Consumer Secret**.
+- Save, then copy the **Consumer Key** and **Consumer Secret**.
+
+> As of **v0.3.0**, you don't put these in env vars. Open the app's
+> **Connections** page, click **Add Connected App**, and paste the login URL,
+> Consumer Key, and Consumer Secret there — they're encrypted at rest. You can
+> register multiple apps/orgs and switch the active connection.
 
 ### 2. Environment variables
 
