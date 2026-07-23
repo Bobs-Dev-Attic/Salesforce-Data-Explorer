@@ -7,6 +7,8 @@ import {
   parseCsv,
   rawCsvRecords,
   splitCsvIntoChunks,
+  delimitedCell,
+  matrixToDelimited,
 } from "./csv";
 
 describe("csvCell", () => {
@@ -35,6 +37,38 @@ describe("csvCell", () => {
 
   it("does not prefix a safe value that merely contains = later", () => {
     expect(csvCell("a=b")).toBe("a=b");
+  });
+});
+
+describe("delimitedCell (TSV)", () => {
+  const TAB = "\t";
+  it("leaves plain values untouched", () => {
+    expect(delimitedCell("hello", TAB)).toBe("hello");
+    expect(delimitedCell("a,b", TAB)).toBe("a,b"); // comma is not the delimiter
+  });
+
+  it("quotes values containing a tab, quote, or newline", () => {
+    expect(delimitedCell("a\tb", TAB)).toBe('"a\tb"');
+    expect(delimitedCell('he "said"', TAB)).toBe('"he ""said"""');
+    expect(delimitedCell("l1\nl2", TAB)).toBe('"l1\nl2"');
+  });
+
+  it("keeps formula-injection hardening (prefix ', no quoting needed)", () => {
+    expect(delimitedCell("=SUM(A1)", TAB)).toBe("'=SUM(A1)");
+  });
+});
+
+describe("matrixToDelimited", () => {
+  it("builds a TSV document from a header + matrix", () => {
+    const tsv = matrixToDelimited(
+      ["Id", "Name"],
+      [
+        ["1", "Acme"],
+        ["2", "Globex"],
+      ],
+      "\t"
+    );
+    expect(tsv).toBe("Id\tName\r\n1\tAcme\r\n2\tGlobex");
   });
 });
 

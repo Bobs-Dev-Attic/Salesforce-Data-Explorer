@@ -3,6 +3,21 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.33.0] - 2026-07-23
+
+### Added
+
+- **Tab-delimited (.tsv) export** everywhere — added a "Tab-delimited" option to
+  the SOQL Editor and Data Explorer exports (streamed via a shared delimiter in
+  `src/lib/csv.ts`, `text/tab-separated-values`), alongside CSV / Excel / JSON.
+- **Bulk export format picker** — the Bulk API export "Download" is now a
+  dropdown offering **CSV / Tab-delimited / JSON / Excel**. The results route
+  (`bulk/query/[jobId]/results?format=…`) converts the assembled CSV to the
+  chosen format (CSV stays a passthrough; TSV/JSON/XLSX are parsed + rebuilt).
+- Generalized the delimited serializers (`delimitedCell/Header/Row`,
+  `matrixToDelimited`) with TSV unit tests (73 total). CSV keeps the same
+  formula-injection hardening; TSV quotes values containing a tab/quote/newline.
+
 ## [0.32.0] - 2026-07-23
 
 ### Changed

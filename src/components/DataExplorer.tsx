@@ -169,7 +169,9 @@ export default function DataExplorer() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">("csv");
+  const [exportFormat, setExportFormat] = useState<
+    "csv" | "tsv" | "xlsx" | "json"
+  >("csv");
   const [exporting, setExporting] = useState(false);
 
   const [saved, setSaved] = useState<SavedQuery[]>([]);
@@ -1262,11 +1264,14 @@ export default function DataExplorer() {
               <select
                 value={exportFormat}
                 onChange={(e) =>
-                  setExportFormat(e.target.value as "csv" | "xlsx" | "json")
+                  setExportFormat(
+                    e.target.value as "csv" | "tsv" | "xlsx" | "json"
+                  )
                 }
                 style={{ width: "auto" }}
               >
                 <option value="csv">CSV (.csv)</option>
+                <option value="tsv">Tab-delimited (.tsv)</option>
                 <option value="xlsx">Excel (.xlsx)</option>
                 <option value="json">JSON (.json)</option>
               </select>

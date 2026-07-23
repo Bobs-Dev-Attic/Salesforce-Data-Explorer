@@ -5,6 +5,7 @@ import { usePersistentState } from "@/lib/usePersistentState";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import ErrorNotice from "@/components/ErrorNotice";
 import ObjectPicker, { type GlobalObject } from "@/components/ObjectPicker";
+import ExportMenu from "@/components/ExportMenu";
 import { splitCsvIntoChunks } from "@/lib/csv";
 
 // Keep each upload comfortably under Vercel's ~4.5MB request-body limit.
@@ -178,17 +179,25 @@ function BulkExport() {
         </div>
       )}
       {done && job?.state === "JobComplete" && (
-        <div className="alert ok" style={{ marginTop: 12 }}>
-          ✅ Export ready.{" "}
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              download(`/api/salesforce/bulk/query/${job.id}/results`);
-            }}
-          >
-            Download CSV
-          </a>
+        <div
+          className="alert ok"
+          style={{
+            marginTop: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>✅ Export ready.</span>
+          <ExportMenu
+            label="Download"
+            onExport={(format) =>
+              download(
+                `/api/salesforce/bulk/query/${job.id}/results?format=${format}`
+              )
+            }
+          />
         </div>
       )}
     </div>

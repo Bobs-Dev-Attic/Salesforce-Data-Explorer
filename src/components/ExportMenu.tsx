@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export type ExportFormat = "csv" | "xlsx" | "json";
+export type ExportFormat = "csv" | "tsv" | "xlsx" | "json";
 
 const FORMATS: { value: ExportFormat; label: string }[] = [
   { value: "csv", label: "CSV" },
+  { value: "tsv", label: "Tab-delimited (.tsv)" },
   { value: "xlsx", label: "Excel (.xlsx)" },
   { value: "json", label: "JSON" },
 ];
