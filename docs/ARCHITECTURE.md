@@ -32,7 +32,8 @@ Browser ──(APP_PASSWORD)──▶ signed httpOnly cookie ──▶ Next rout
 
 ```
 src/lib/
-  crypto.ts            AES-256-GCM encrypt/decrypt (key: CREDENTIALS_ENCRYPTION_KEY)
+  crypto.ts            AES-256-GCM encrypt/decrypt with a versioned keyring (rotation)
+  keyRotation.ts       re-encrypt all stored secrets under the active key
   session.ts           app-auth cookie sign/verify, checkPassword
   supabase.ts          server-only service-role client (singleton)
   salesforce.ts        OAuth apps CRUD, connections CRUD, token mint, sfFetch,
@@ -63,6 +64,7 @@ src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated
   salesforce/bulk/{query,ingest}/...     Bulk API 2.0
   salesforce/saved-queries[/id]          saved builder state + SOQL
   salesforce/debug                       diagnostics (app-auth gated, no secrets)
+  admin/rekey                            re-encrypt secrets under the active key
 
 src/app/*/page.tsx     pages: / (dashboard), /login, /explorer, /query, /objects,
                        /schema, /bulk, /connections
@@ -103,5 +105,7 @@ change → PR → squash-merge → Vercel auto-deploys. `package.json` version +
 
 `APP_BASE_URL`, `APP_PASSWORD`, `APP_SESSION_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`
 (32 bytes base64), `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
-Optional: `SF_TOKEN_TTL_SECONDS` (access-token cache fallback TTL, default 900).
-Salesforce Connected App creds are stored **in-app** (DB), not env, since v0.3.0.
+Optional: `SF_TOKEN_TTL_SECONDS` (access-token cache fallback TTL, default 900);
+`CREDENTIALS_ENCRYPTION_KEYS` (`id:base64,…`) + `CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID`
+for key rotation (see SECURITY.md). Salesforce Connected App creds are stored
+**in-app** (DB), not env, since v0.3.0.
