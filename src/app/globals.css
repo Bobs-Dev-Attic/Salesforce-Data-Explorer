@@ -392,6 +392,46 @@ td.actions-cell {
   color: var(--danger);
 }
 
+/* Active-connection switcher (top bar) */
+.conn-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  max-width: 240px;
+}
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: 0 0 auto;
+}
+.conn-switcher select {
+  width: auto;
+  max-width: 190px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.conn-switcher select:focus {
+  outline: none;
+}
+.conn-name {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 190px;
+}
+
 /* Object picker (combobox + directory button) */
 .objpicker-row {
   display: flex;
