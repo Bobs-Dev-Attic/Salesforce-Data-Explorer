@@ -10,6 +10,7 @@ import {
   recordFailure,
   recordSuccess,
 } from "@/lib/rateLimit";
+import { assertEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 
@@ -64,6 +65,18 @@ export async function POST(req: Request) {
   }
 
   recordSuccess(ip);
+
+  // Password is correct — fail fast with a clear message if the rest of the
+  // environment is misconfigured, instead of a deep 500 from the calls below.
+  try {
+    assertEnv();
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Server misconfiguration" },
+      { status: 503 }
+    );
+  }
+
   const cookie = await createSessionCookie();
   const res = NextResponse.json({ ok: true });
   res.cookies.set(cookie.name, cookie.value, cookie.options);
