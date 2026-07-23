@@ -582,6 +582,40 @@ export async function runSoql(
   };
 }
 
+/**
+ * Stream a SOQL result page by page (each yield is one Salesforce batch,
+ * capped so the running total never exceeds `maxRecords`). Lets exporters emit
+ * rows incrementally instead of buffering the entire result set in memory.
+ */
+export async function* streamSoql(
+  connectionId: string,
+  soql: string,
+  maxRecords = 50000
+): AsyncGenerator<Record<string, unknown>[]> {
+  const first = await sfFetch(
+    connectionId,
+    `/services/data/${API_VERSION}/query?q=${encodeURIComponent(soql)}`
+  );
+  if (!first.ok) throw new Error(await first.text());
+  let page = (await first.json()) as SoqlResult;
+  let emitted = 0;
+
+  while (true) {
+    const remaining = maxRecords - emitted;
+    if (remaining <= 0) return;
+    const batch =
+      page.records.length > remaining ? page.records.slice(0, remaining) : page.records;
+    if (batch.length > 0) {
+      emitted += batch.length;
+      yield batch;
+    }
+    if (page.done || !page.nextRecordsUrl || emitted >= maxRecords) return;
+    const res = await sfFetch(connectionId, page.nextRecordsUrl);
+    if (!res.ok) throw new Error(await res.text());
+    page = (await res.json()) as SoqlResult;
+  }
+}
+
 // ------------------------------------------------------------------
 // Metadata (describe) with Supabase caching
 // ------------------------------------------------------------------

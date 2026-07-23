@@ -52,8 +52,10 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   imports open a typed-confirmation modal (object name + row count; hard-delete
   permanence warning) before running. **Follow-up:** optional server-side guard
   (require a `confirm` flag) for defense in depth.
-- [ ] **Stream large exports.** `export` and bulk results buffer up to 50k rows
-  in serverless memory (OOM risk). Use `ReadableStream` / Bulk 2.0 download.
+- [x] **Stream large exports.** _(v0.24.0)_ CSV/JSON exports stream page by page
+  via `streamSoql` + `ReadableStream` (one batch in memory at a time). XLSX still
+  buffers (ZIP needs the full matrix). **Follow-up:** for huge XLSX use Bulk 2.0
+  streamed download; bulk import CSV still rides in the JSON body (separate item).
 - [ ] **Bulk import CSV off the JSON body.** `bulk/ingest` reads `body.csv`
   (capped ~4.5MB by Vercel). Use streaming/multipart or direct-to-Salesforce.
 - [ ] **`assertEnv()` at boot / health route.** Fail fast on missing
