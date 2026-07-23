@@ -45,11 +45,18 @@ Browser ──APP_PASSWORD──▶ HMAC-signed httpOnly cookie ──▶ Next r
   non-secret consumer keys.
 - The XLSX writer emits `inlineStr` cells → not a formula-injection vector.
 
+## Fixed in v0.20.0
+
+- Login rate limiting / lockout (`src/lib/rateLimit.ts`) — 5 fails / 15-min
+  window → 15-min lockout. (In-memory baseline; durable limiter still on the
+  backlog.)
+- Nonce-based CSP + security headers (`src/middleware.ts`, `next.config.js`).
+- CSV formula-injection hardening (`export/route.ts#csvCell`).
+
 ## Known gaps (see TODO.md for the fix list)
 
-- **P0** No rate limiting / lockout on the login endpoint (brute-force surface).
-- **P1** No CSP / security headers (`next.config.js` sets only `poweredByHeader:false`).
-- **P1** CSV export does not neutralize formula-trigger characters (`= + - @`).
+- **P1 (follow-up)** Login limiter is in-memory/per-instance — move to Redis/WAF
+  for a durable cross-instance limit; add an `APP_PASSWORD` strength check.
 - **P2** Sessions can't be revoked (cookie is `HMAC(expiryMs)`, no server store).
 - **P2** One symmetric key decrypts all secrets, stored as a plain env var.
 - **P2** Destructive Bulk `delete`/`hardDelete` has no typed confirmation.

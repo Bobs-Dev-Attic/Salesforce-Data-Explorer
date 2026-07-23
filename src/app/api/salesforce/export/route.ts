@@ -40,8 +40,14 @@ function flatten(
 }
 
 function csvCell(v: string): string {
-  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
-  return v;
+  let s = v;
+  // Neutralize spreadsheet formula injection: a cell beginning with = + - @
+  // (optionally preceded by a tab or carriage return) is interpreted as a live
+  // formula by Excel / Google Sheets. Prefix with a single quote so the value
+  // is rendered as literal text. The XLSX writer uses inlineStr and is unaffected.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
 }
 
 function toCsv(rows: Record<string, string>[], columns: string[]): string {
