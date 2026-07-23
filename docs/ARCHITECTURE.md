@@ -44,6 +44,8 @@ src/lib/
   csv.ts               CSV serialization + formula-injection escaping
   rateLimit.ts         in-memory per-IP login limiter (lockout)
   usePersistentState.ts localStorage-backed useState hook
+  useVirtualRows.ts    row windowing for large result grids
+  useFocusTrap.ts      modal focus trap + Escape + focus restore
 
 Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv).
 CI: .github/workflows/ci.yml runs typecheck → lint → test → build on PRs.
@@ -66,7 +68,7 @@ src/app/*/page.tsx     pages: / (dashboard), /login, /explorer, /query, /objects
                        /schema, /bulk, /connections
 src/components/        DataExplorer, QueryRunner (SOQL editor), ObjectExplorer (tree),
                        RelationshipMap (schema SVG), BulkTools, ConnectionsManager,
-                       ObjectPicker, ConnectionSwitcher, AppMenu, GlobalProgress,
+                       ObjectPicker, ConnectionSwitcher, AppMenu, GlobalProgress, ExportMenu,
                        fieldUi (shared FunnelIcon + FieldMetadataDialog)
 ```
 

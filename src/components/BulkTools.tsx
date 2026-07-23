@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 interface BulkJob {
   id: string;
@@ -413,17 +414,17 @@ function DestructiveConfirm({
   const hard = operation === "hardDelete";
   const verb = hard ? "Hard delete" : "Delete";
   const matches = confirmText.trim() === object.trim() && object.trim() !== "";
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, onCancel);
 
   return (
-    <div
-      className="modal-backdrop"
-      onClick={onCancel}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Confirm ${verb.toLowerCase()}`}
-    >
+    <div className="modal-backdrop" onClick={onCancel}>
       <div
         className="modal"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Confirm ${verb.toLowerCase()}`}
         style={{ maxWidth: 460 }}
         onClick={(e) => e.stopPropagation()}
       >

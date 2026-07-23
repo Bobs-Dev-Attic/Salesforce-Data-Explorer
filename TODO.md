@@ -60,11 +60,15 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   (capped ~4.5MB by Vercel). Use streaming/multipart or direct-to-Salesforce.
 - [ ] **`assertEnv()` at boot / health route.** Fail fast on missing
   `CREDENTIALS_ENCRYPTION_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, etc.
-- [ ] **Virtualize result grids.** Up to 2,000 rows hit the DOM; window or page.
+- [x] **Virtualize result grids.** _(v0.25.0)_ SOQL Editor + Data Explorer result
+  tables window rows via `useVirtualRows` (renders only near-viewport rows past
+  ~150). **Follow-up:** apply to the Object Explorer fields table if it grows.
 - [ ] **Friendly error mapping.** Map `INVALID_FIELD`, auth-expiry, etc. to
   readable messages with a "copy details" affordance.
-- [ ] **Accessibility pass.** Focus trap/return in modals, keyboard paths for the
-  SOQL overlay editor + SVG schema map, `aria-label` audit. Run axe.
+- [~] **Accessibility pass.** _(v0.25.0, partial)_ Modals trap focus + Escape +
+  focus restore (`useFocusTrap`), global focus-visible ring, `aria-label`s on
+  icon-only buttons. **Remaining:** keyboard/ARIA for the SVG schema map, a full
+  axe sweep across pages.
 - [ ] **Document data-handling posture** (GDPR/CCPA): records never persisted
   server-side; only encrypted tokens + schema cache + saved queries are stored.
 
