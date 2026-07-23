@@ -13,22 +13,30 @@ const VALID_OPS: IngestOperation[] = [
   "hardDelete",
 ];
 
+/**
+ * Start a Bulk API 2.0 ingest job. The CSV rides as the raw request body
+ * (`text/csv`), with metadata in query params — instead of a JSON envelope,
+ * which doubled memory and pushed the payload past the platform body limit
+ * sooner. The client chunks large CSVs into several of these requests.
+ */
 export async function POST(req: Request) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const body = await req.json().catch(() => ({}));
-  const object = String(body.object || "").trim();
-  const operation = String(body.operation || "").trim() as IngestOperation;
-  const externalIdFieldName = body.externalIdFieldName
-    ? String(body.externalIdFieldName).trim()
-    : undefined;
-  const csv = String(body.csv || "");
+
+  const url = new URL(req.url);
+  const object = (url.searchParams.get("object") || "").trim();
+  const operation = (url.searchParams.get("operation") || "").trim() as
+    | IngestOperation
+    | "";
+  const externalIdFieldName =
+    url.searchParams.get("externalIdFieldName")?.trim() || undefined;
+  const csv = await req.text();
 
   if (!object) {
     return NextResponse.json({ error: "Missing object" }, { status: 400 });
   }
-  if (!VALID_OPS.includes(operation)) {
+  if (!VALID_OPS.includes(operation as IngestOperation)) {
     return NextResponse.json({ error: "Invalid operation" }, { status: 400 });
   }
   if (!csv.trim()) {
@@ -52,7 +60,7 @@ export async function POST(req: Request) {
   try {
     const job = await startIngest(conn.id, {
       object,
-      operation,
+      operation: operation as IngestOperation,
       externalIdFieldName,
       csv,
     });

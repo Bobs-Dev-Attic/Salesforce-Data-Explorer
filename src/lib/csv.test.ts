@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { csvCell, csvHeader, csvRow, toCsv, parseCsv } from "./csv";
+import {
+  csvCell,
+  csvHeader,
+  csvRow,
+  toCsv,
+  parseCsv,
+  rawCsvRecords,
+  splitCsvIntoChunks,
+} from "./csv";
 
 describe("csvCell", () => {
   it("leaves plain values untouched", () => {
@@ -72,6 +80,42 @@ describe("parseCsv", () => {
       ["1", "Acme, Inc."],
       ["2", 'Quote"'],
     ]);
+  });
+});
+
+describe("rawCsvRecords", () => {
+  it("splits on unquoted newlines and keeps quoted newlines intact", () => {
+    const { header, records } = rawCsvRecords(
+      'Id,Note\n1,"line1\nline2"\r\n2,plain'
+    );
+    expect(header).toBe("Id,Note");
+    expect(records).toEqual(['1,"line1\nline2"', "2,plain"]);
+  });
+});
+
+describe("splitCsvIntoChunks", () => {
+  it("returns a single chunk when under the limit", () => {
+    const csv = "Id,Name\n1,A\n2,B";
+    expect(splitCsvIntoChunks(csv, 1_000)).toEqual([csv]);
+  });
+
+  it("repeats the header on each chunk and never splits a record", () => {
+    const csv = "Id,Name\n1,AAAA\n2,BBBB\n3,CCCC";
+    // Header "Id,Name\n" = 8 bytes; each row "N,XXXX\n" = 7 bytes.
+    // Limit 18 → header(8) + one row(7)=15 fits, + second row would be 22 > 18.
+    const chunks = splitCsvIntoChunks(csv, 18);
+    expect(chunks.length).toBe(3);
+    for (const c of chunks) expect(c.startsWith("Id,Name\n")).toBe(true);
+    // Reassembling the data rows across chunks preserves all rows in order.
+    const rows = chunks.flatMap((c) => c.split("\n").slice(1));
+    expect(rows).toEqual(["1,AAAA", "2,BBBB", "3,CCCC"]);
+  });
+
+  it("gives an over-size single record its own chunk", () => {
+    const csv = "Id,Name\n1,short\n2,thisisaverylongvalue";
+    const chunks = splitCsvIntoChunks(csv, 16);
+    expect(chunks.length).toBe(2);
+    expect(chunks[1]).toContain("thisisaverylongvalue");
   });
 });
 

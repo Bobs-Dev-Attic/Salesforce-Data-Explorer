@@ -3,6 +3,23 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.32.0] - 2026-07-23
+
+### Changed
+
+- **Bulk import CSV off the JSON body (P2)** — the import CSV was sent as a
+  string inside a JSON envelope, doubling memory and hitting Vercel's ~4.5 MB
+  request limit sooner. It now rides as the **raw `text/csv` request body** with
+  metadata in query params (`POST /api/salesforce/bulk/ingest?object=…&operation=…`).
+- **Large imports now chunk automatically** — the client splits the CSV into
+  LF-joined chunks under the body limit (`splitCsvIntoChunks`, never splitting a
+  record, header repeated per chunk) and runs each as its own sequential ingest
+  job, showing progress (`part 2 of 5…`) and aggregating results — total
+  processed/failed plus per-job Successful/Failed CSV links. Lifts the practical
+  import-size ceiling well beyond a single 4.5 MB request.
+- New `rawCsvRecords` / `splitCsvIntoChunks` in `src/lib/csv.ts` with unit tests
+  (69 total).
+
 ## [0.31.0] - 2026-07-23
 
 ### Added
