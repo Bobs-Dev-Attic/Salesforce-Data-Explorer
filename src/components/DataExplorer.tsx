@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readPersisted, writePersisted } from "@/lib/usePersistentState";
+import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 
 const EXPLORER_KEY = "sfde.explorer.state";
 
@@ -171,6 +172,46 @@ export default function DataExplorer() {
   const [saved, setSaved] = useState<SavedQuery[]>([]);
   const [savedNeedsMigration, setSavedNeedsMigration] = useState(false);
 
+  // Full describe field objects, keyed by name, for the metadata dialog.
+  const [rawFieldMap, setRawFieldMap] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+  const [fieldModal, setFieldModal] = useState<Record<string, unknown> | null>(
+    null
+  );
+
+  // Results grid: sorting + funnel column filters.
+  const [resSortKey, setResSortKey] = useState<string | null>(null);
+  const [resSortDir, setResSortDir] = useState<"asc" | "desc">("asc");
+  const [resColFilters, setResColFilters] = useState<Record<string, string>>({});
+  const [resOpenFilter, setResOpenFilter] = useState<string | null>(null);
+  const resFlyoutRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!fieldModal && !resOpenFilter) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setFieldModal(null);
+        setResOpenFilter(null);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [fieldModal, resOpenFilter]);
+
+  useEffect(() => {
+    if (!resOpenFilter) return;
+    function onDown(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (t.closest && t.closest(".funnel-btn")) return;
+      if (resFlyoutRef.current && !resFlyoutRef.current.contains(t)) {
+        setResOpenFilter(null);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [resOpenFilter]);
+
   // When loading a saved query we defer applying its state until the object's
   // fields have loaded (the object-change effect resets columns/filters).
   const restoreRef = useRef<BuilderState | null>(null);
@@ -276,6 +317,9 @@ export default function DataExplorer() {
           })
         );
         setFields(fs);
+        const rawMap: Record<string, Record<string, unknown>> = {};
+        for (const f of data.fields || []) rawMap[f.name] = f;
+        setRawFieldMap(rawMap);
         setChildRels(
           (data.childRelationships || [])
             .filter((c: ChildRelationship) => c.relationshipName)
@@ -752,6 +796,41 @@ export default function DataExplorer() {
     return cols;
   }, [displayRows]);
 
+  // Apply funnel column filters + header sort to the displayed rows.
+  const viewRows = useMemo(() => {
+    let rows = displayRows;
+    const active = Object.entries(resColFilters).filter(([, v]) => v.trim());
+    if (active.length) {
+      rows = rows.filter((r) =>
+        active.every(([c, v]) =>
+          (r[c] ?? "").toLowerCase().includes(v.toLowerCase())
+        )
+      );
+    }
+    if (resSortKey) {
+      const dir = resSortDir === "asc" ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        const av = a[resSortKey] ?? "";
+        const bv = b[resSortKey] ?? "";
+        const an = Number(av);
+        const bn = Number(bv);
+        if (av !== "" && bv !== "" && !isNaN(an) && !isNaN(bn)) {
+          return (an - bn) * dir;
+        }
+        return av.localeCompare(bv) * dir;
+      });
+    }
+    return rows;
+  }, [displayRows, resColFilters, resSortKey, resSortDir]);
+
+  function resSortBy(col: string) {
+    if (col === resSortKey) setResSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setResSortKey(col);
+      setResSortDir("asc");
+    }
+  }
+
   return (
     <div>
       <h1>Data Explorer</h1>
@@ -868,24 +947,48 @@ export default function DataExplorer() {
                 </div>
                 <div className="list" style={{ maxHeight: 300 }}>
                   {filteredFields.map((f) => (
-                    <label
+                    <div
                       key={f.name}
                       className="list-item"
-                      style={{ display: "flex", gap: 8, cursor: "pointer" }}
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                      }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={columns.includes(f.name)}
-                        onChange={() => toggleColumn(f.name)}
-                        style={{ width: "auto" }}
-                      />
-                      <span>
-                        <span className="lbl">{f.label}</span>{" "}
-                        <span className="api">
-                          {f.name} · {f.type}
+                      <label
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          cursor: "pointer",
+                          flex: 1,
+                          margin: 0,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={columns.includes(f.name)}
+                          onChange={() => toggleColumn(f.name)}
+                          style={{ width: "auto" }}
+                        />
+                        <span>
+                          <span className="lbl">{f.label}</span>{" "}
+                          <span className="api">
+                            {f.name} · {f.type}
+                          </span>
                         </span>
-                      </span>
-                    </label>
+                      </label>
+                      {rawFieldMap[f.name] && (
+                        <button
+                          className="linkbtn"
+                          title="Field metadata"
+                          onClick={() => setFieldModal(rawFieldMap[f.name])}
+                          style={{ fontSize: 13 }}
+                        >
+                          ⓘ
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
 
@@ -1199,12 +1302,71 @@ export default function DataExplorer() {
                 <thead>
                   <tr>
                     {resultColumns.map((c) => (
-                      <th key={c}>{c}</th>
+                      <th key={c} style={{ position: "relative" }}>
+                        <span
+                          onClick={() => resSortBy(c)}
+                          style={{ cursor: "pointer", userSelect: "none" }}
+                          title="Click to sort"
+                        >
+                          {c}
+                          {resSortKey === c
+                            ? resSortDir === "asc"
+                              ? " ▲"
+                              : " ▼"
+                            : ""}
+                        </span>
+                        <button
+                          className={`funnel-btn${
+                            resColFilters[c] ? " active" : ""
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setResOpenFilter((o) => (o === c ? null : c));
+                          }}
+                          title={
+                            resColFilters[c]
+                              ? `Filtered: "${resColFilters[c]}"`
+                              : "Filter column"
+                          }
+                          aria-label="Filter column"
+                        >
+                          <FunnelIcon active={Boolean(resColFilters[c])} />
+                        </button>
+                        {resOpenFilter === c && (
+                          <div className="col-flyout" ref={resFlyoutRef}>
+                            <input
+                              autoFocus
+                              value={resColFilters[c] || ""}
+                              onChange={(e) =>
+                                setResColFilters((f) => ({
+                                  ...f,
+                                  [c]: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape")
+                                  setResOpenFilter(null);
+                              }}
+                              placeholder={`Filter ${c}…`}
+                              style={{ padding: "6px 8px", fontSize: 13 }}
+                            />
+                            <button
+                              className="btn secondary"
+                              style={{ padding: "6px 10px", fontSize: 12 }}
+                              onClick={() =>
+                                setResColFilters((f) => ({ ...f, [c]: "" }))
+                              }
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {displayRows.map((r, i) => (
+                  {viewRows.map((r, i) => (
                     <tr key={i}>
                       {resultColumns.map((c) => (
                         <td key={c} title={r[c] ?? ""}>
@@ -1213,6 +1375,13 @@ export default function DataExplorer() {
                       ))}
                     </tr>
                   ))}
+                  {viewRows.length === 0 && (
+                    <tr>
+                      <td colSpan={resultColumns.length} className="muted">
+                        No rows match the filters.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1220,6 +1389,13 @@ export default function DataExplorer() {
             <p className="muted">No records returned.</p>
           )}
         </div>
+      )}
+
+      {fieldModal && (
+        <FieldMetadataDialog
+          field={fieldModal}
+          onClose={() => setFieldModal(null)}
+        />
       )}
     </div>
   );
