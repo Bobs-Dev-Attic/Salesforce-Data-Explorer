@@ -36,6 +36,7 @@ src/lib/
   keyRotation.ts       re-encrypt all stored secrets under the active key
   session.ts           app-auth cookie sign/verify (+ session epoch), checkPassword — async
   appSettings.ts       server key/value settings; session epoch read/bump (cached)
+  env.ts               required-env validation (assertEnv / checkEnv)
   supabase.ts          server-only service-role client (singleton)
   salesforce.ts        OAuth apps CRUD, connections CRUD, token mint, sfFetch,
                        runSoql, describeGlobal/SObject (+ 24h Supabase cache),
@@ -66,6 +67,7 @@ src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated
   salesforce/saved-queries[/id]          saved builder state + SOQL
   salesforce/debug                       diagnostics (app-auth gated, no secrets)
   admin/rekey                            re-encrypt secrets under the active key
+  health                                 config health (ok + status; detail if authed)
 
 src/app/*/page.tsx     pages: / (dashboard), /login, /explorer, /query, /objects,
                        /schema, /bulk, /connections

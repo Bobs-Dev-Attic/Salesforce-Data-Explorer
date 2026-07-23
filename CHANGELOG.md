@@ -3,6 +3,24 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.29.0] - 2026-07-23
+
+### Added
+
+- **Env validation + health route (P2)** — new `src/lib/env.ts` centralizes
+  environment checks: `assertEnv()` fails fast with one aggregated message
+  listing every missing/invalid required var, and `checkEnv()` reports config
+  health without exposing secret *values*.
+  - **`GET /api/health`** — returns `{ ok }` + HTTP `200`/`503` for uptime
+    monitors; an unlocked session additionally gets the per-variable report
+    (names + presence/validity) for diagnosis.
+  - Wired `assertEnv()` into the login route: once the password is correct, a
+    misconfigured deployment returns a clear `503` instead of a deep `500` from
+    the cookie/DB calls.
+  - Validates `APP_PASSWORD`, `APP_SESSION_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
+    `NEXT_PUBLIC_SUPABASE_URL` (URL shape), and the encryption keyring; flags
+    `APP_BASE_URL` as recommended. 7 new unit tests (53 total).
+
 ## [0.28.0] - 2026-07-23
 
 ### Security
