@@ -3,6 +3,22 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.1] - 2026-07-23
+
+### Added
+
+- **Project documentation & review** — added a full documentation set to help
+  humans and coding agents orient without re-scanning the codebase:
+  - `docs/ARCHITECTURE.md` — stack, trust model, directory map, data model,
+    localStorage keys, key flows, deploy/versioning workflow, env vars.
+  - `docs/REVIEW.md` — candid multi-perspective critique (security/pentester,
+    software engineer, UX, legal/privacy, marketer/founder) with P0–P3 severity.
+  - `TODO.md` — prioritized backlog (P0–P3) distilled from the review.
+  - `SECURITY.md` — threat model, trust boundaries, data-handling posture,
+    known gaps, and secret/env guidance.
+  - `AGENTS.md` and `CLAUDE.md` — agent guides (conventions, ship workflow,
+    gotchas, infra IDs) to minimize token use and rework.
+
 ## [0.19.0] - 2026-07-23
 
 ### Added
