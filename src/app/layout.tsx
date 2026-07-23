@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { isAuthenticated } from "@/lib/session";
 import GlobalProgress from "@/components/GlobalProgress";
+import ConnectionSwitcher from "@/components/ConnectionSwitcher";
 import pkg from "../../package.json";
 
 const appVersion = pkg.version;
@@ -30,6 +31,7 @@ export default function RootLayout({
           </Link>
           {authed && (
             <nav className="nav">
+              <ConnectionSwitcher />
               <Link href="/">Home</Link>
               <Link href="/explorer">Explorer</Link>
               <Link href="/query">SOQL</Link>

@@ -3,6 +3,15 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-07-23
+
+### Added
+
+- **Active-connection switcher** in the top bar — shows the active Salesforce org
+  on every page (Data Explorer, SOQL, Objects, Schema, Bulk, …). When more than
+  one connection is saved, a dropdown lets you switch; activating reloads so all
+  data re-reads from the newly-selected org.
+
 ## [0.16.1] - 2026-07-23
 
 ### Added
