@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.22.0] - 2026-07-23
+
+### Added
+
+- **Automated tests (P1)** — introduced Vitest with 28 unit tests covering the
+  security- and correctness-critical helpers: `crypto` encrypt/decrypt
+  round-trip + auth-tag tamper rejection, `session` `checkPassword` /
+  `isPasswordConfigured`, the login `rateLimit` lockout logic + `clientIp`
+  parsing, and CSV serialization incl. formula-injection escaping. Run with
+  `npm test`.
+- **Continuous integration (P1)** — added `.github/workflows/ci.yml` running
+  typecheck → lint → test → build on every PR and push to `main`, closing the
+  gap where changes merged with no automated gate.
+- **ESLint config** — added `.eslintrc.json` (`next/core-web-vitals`) so
+  `npm run lint` runs non-interactively in CI (clean on the current tree).
+
+### Changed
+
+- Extracted CSV serialization into `src/lib/csv.ts` (from the export route) so
+  the escaping rules are unit-testable; the route now imports `toCsv`. No
+  behavior change.
+
 ## [0.21.0] - 2026-07-23
 
 ### Performance

@@ -83,6 +83,9 @@ for each change**, then PR → squash-merge → Vercel auto-deploys.
 
 ## Before you finish
 
-Run `npm run typecheck` and `npm run build` mentally against your change (there's
-no CI yet — adding it is a P1 in `TODO.md`). Keep the docs above accurate if you
-change architecture, env vars, or the data model.
+CI (`.github/workflows/ci.yml`) gates PRs + pushes to `main` on typecheck →
+lint → test → build. Run the same locally: `npm run typecheck && npm run lint &&
+npm test && npm run build`. Tests are Vitest, colocated as `src/**/*.test.ts`;
+add or extend them when you touch security- or correctness-critical logic
+(`crypto`, `session`, `rateLimit`, `csv`, SOQL building). Keep the docs above
+accurate if you change architecture, env vars, or the data model.

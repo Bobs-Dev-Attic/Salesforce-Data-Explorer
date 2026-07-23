@@ -44,6 +44,8 @@ cycle. If the prior PR already merged, restart from `main` — don't stack on it
 
 ## Verify before finishing
 
-No CI yet (P1 in `TODO.md`). At minimum keep `npm run typecheck` / `npm run
-build` clean, and update `docs/ARCHITECTURE.md` if you touch architecture, env
-vars, or the schema.
+CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build on PRs.
+Run the same locally before pushing: `npm run typecheck && npm run lint && npm
+test && npm run build`. Add/extend Vitest tests (`src/**/*.test.ts`) when you
+touch security- or correctness-critical logic. Update `docs/ARCHITECTURE.md` if
+you change architecture, env vars, or the schema.

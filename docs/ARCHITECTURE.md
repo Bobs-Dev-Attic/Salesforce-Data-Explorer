@@ -41,7 +41,12 @@ src/lib/
   bulk.ts              Bulk API 2.0: query jobs + ingest jobs
   savedQueries.ts      saved_queries CRUD (graceful if table missing)
   xlsx.ts              dependency-free OOXML/ZIP writer (CRC32 + stored ZIP)
+  csv.ts               CSV serialization + formula-injection escaping
+  rateLimit.ts         in-memory per-IP login limiter (lockout)
   usePersistentState.ts localStorage-backed useState hook
+
+Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv).
+CI: .github/workflows/ci.yml runs typecheck → lint → test → build on PRs.
 
 src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated())
   app-auth/{login,logout}
