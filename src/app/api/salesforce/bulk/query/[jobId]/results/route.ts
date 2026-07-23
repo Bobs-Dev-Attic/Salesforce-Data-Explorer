@@ -1,8 +1,12 @@
 import { getActiveConnection } from "@/lib/salesforce";
 import { getQueryResults } from "@/lib/bulk";
 import { isAuthenticated } from "@/lib/session";
+import { parseCsv, matrixToDelimited } from "@/lib/csv";
+import { buildXlsx } from "@/lib/xlsx";
 
 export const runtime = "nodejs";
+
+type BulkFormat = "csv" | "tsv" | "json" | "xlsx";
 
 /** Strip the header row from a CSV chunk (used for pages 2..N). */
 function dropHeader(csv: string): string {
@@ -10,8 +14,68 @@ function dropHeader(csv: string): string {
   return nl >= 0 ? csv.slice(nl + 1) : "";
 }
 
+/** Convert the assembled CSV into the requested format for download. */
+function convert(
+  csv: string,
+  format: BulkFormat,
+  baseName: string
+): Response {
+  if (format === "csv") {
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${baseName}.csv"`,
+      },
+    });
+  }
+
+  const { headers, rows } = parseCsv(csv);
+
+  if (format === "tsv") {
+    return new Response(matrixToDelimited(headers, rows, "\t"), {
+      status: 200,
+      headers: {
+        "Content-Type": "text/tab-separated-values; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${baseName}.tsv"`,
+      },
+    });
+  }
+
+  if (format === "json") {
+    const json = JSON.stringify(
+      rows.map((r) => {
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => (obj[h] = r[i] ?? ""));
+        return obj;
+      }),
+      null,
+      2
+    );
+    return new Response(json, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${baseName}.json"`,
+      },
+    });
+  }
+
+  // xlsx
+  const matrix = rows.map((r) => headers.map((_, i) => r[i] ?? ""));
+  const buf = buildXlsx(headers, matrix, "Data");
+  return new Response(new Uint8Array(buf), {
+    status: 200,
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${baseName}.xlsx"`,
+    },
+  });
+}
+
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { jobId: string } }
 ) {
   if (!(await isAuthenticated())) {
@@ -48,14 +112,12 @@ export async function GET(
       locator = page.nextLocator;
     }
     const csv = parts.join("");
-    const filename = `bulk-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    return new Response(csv, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    const fmtParam = new URL(req.url).searchParams.get("format") || "csv";
+    const format = (
+      ["csv", "tsv", "json", "xlsx"].includes(fmtParam) ? fmtParam : "csv"
+    ) as BulkFormat;
+    const baseName = `bulk-export-${new Date().toISOString().slice(0, 10)}`;
+    return convert(csv, format, baseName);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Failed to fetch results";
     return new Response(JSON.stringify({ error: msg }), {

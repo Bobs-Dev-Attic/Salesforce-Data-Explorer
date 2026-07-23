@@ -1,7 +1,7 @@
 import { getActiveConnection, runSoql, streamSoql } from "@/lib/salesforce";
 import { isAuthenticated } from "@/lib/session";
 import { buildXlsx } from "@/lib/xlsx";
-import { csvHeader, csvRow } from "@/lib/csv";
+import { delimitedHeader, delimitedRow, DELIMITERS } from "@/lib/csv";
 
 export const runtime = "nodejs";
 
@@ -54,7 +54,7 @@ function jsonError(msg: string, status: number) {
  * SELECT fixes the schema, so later batches share those keys.
  */
 function streamExport(
-  format: "csv" | "json",
+  format: "csv" | "tsv" | "json",
   firstBatch: Record<string, unknown>[],
   rest: AsyncGenerator<Record<string, unknown>[]>
 ): ReadableStream<Uint8Array> {
@@ -65,15 +65,16 @@ function streamExport(
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        if (format === "csv") {
-          controller.enqueue(enc.encode(csvHeader(columns)));
+        if (format === "csv" || format === "tsv") {
+          const d = DELIMITERS[format];
+          controller.enqueue(enc.encode(delimitedHeader(columns, d)));
           for (const row of firstRows) {
-            controller.enqueue(enc.encode("\r\n" + csvRow(row, columns)));
+            controller.enqueue(enc.encode("\r\n" + delimitedRow(row, columns, d)));
           }
           for await (const batch of rest) {
             for (const rec of batch) {
               controller.enqueue(
-                enc.encode("\r\n" + csvRow(flatten(rec), columns))
+                enc.encode("\r\n" + delimitedRow(flatten(rec), columns, d))
               );
             }
           }
@@ -113,8 +114,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const soql = String(body.soql || "").trim();
   const maxRecords = Math.min(Number(body.maxRecords) || 10000, 50000);
-  const format = ["csv", "json", "xlsx"].includes(body.format)
-    ? (body.format as "csv" | "json" | "xlsx")
+  const format = ["csv", "tsv", "json", "xlsx"].includes(body.format)
+    ? (body.format as "csv" | "tsv" | "json" | "xlsx")
     : "csv";
   const baseName = String(body.filename || "export").replace(/[^a-zA-Z0-9_-]/g, "");
   if (!soql) return jsonError("Missing soql", 400);
@@ -162,6 +163,8 @@ export async function POST(req: Request) {
   const contentType =
     format === "json"
       ? "application/json; charset=utf-8"
+      : format === "tsv"
+      ? "text/tab-separated-values; charset=utf-8"
       : "text/csv; charset=utf-8";
   return new Response(stream, {
     status: 200,
