@@ -4,6 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import ErrorNotice from "@/components/ErrorNotice";
+import ObjectPicker, { type GlobalObject } from "@/components/ObjectPicker";
+
+interface PreviewReport {
+  object: string;
+  operation: string;
+  totalRows: number;
+  analyzedRows: number;
+  truncated: boolean;
+  willInsert: number;
+  willUpdate: number;
+  willDelete: number;
+  notFound: number;
+  unknownFields: string[];
+  issues: string[];
+  sampleErrors: { row: number; issue: string }[];
+}
 
 interface BulkJob {
   id: string;
@@ -189,14 +205,104 @@ function BulkImport() {
   const [done, setDone] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [objects, setObjects] = useState<GlobalObject[]>([]);
+  const [preview, setPreview] = useState<PreviewReport | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const job = useJobPoller("ingest", jobId, () => setDone(true));
 
   const isDestructive = DESTRUCTIVE.has(operation);
   const rowCount = csvRowCount(csv);
 
-  /** Destructive ops (delete / hardDelete) go through a typed confirmation. */
-  function onRunClick() {
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/salesforce/objects");
+        const data = await res.json();
+        if (res.ok) setObjects(data.objects || []);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
+  // A preview is only valid for the exact inputs it was generated from.
+  useEffect(() => {
+    setPreview(null);
+  }, [csv, object, operation, externalId]);
+
+  async function runPreview() {
+    setPreviewing(true);
+    setError(null);
+    setPreview(null);
+    try {
+      const res = await fetch("/api/salesforce/bulk/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          object,
+          operation,
+          externalIdFieldName: operation === "upsert" ? externalId : undefined,
+          csv,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) setError(data.error || "Preview failed");
+      else setPreview(data.report as PreviewReport);
+    } catch {
+      setError("Network error");
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  function downloadReport() {
+    if (!preview) return;
+    const p = preview;
+    const lines = [
+      `Bulk import preview — ${p.object} (${p.operation})`,
+      "",
+      `Total rows: ${p.totalRows}`,
+      `Analyzed rows: ${p.analyzedRows}${
+        p.truncated ? ` (capped; ${p.totalRows} total)` : ""
+      }`,
+      `Will insert: ${p.willInsert}`,
+      `Will update: ${p.willUpdate}`,
+      `Will delete: ${p.willDelete}`,
+      `Not found / row errors: ${p.notFound}`,
+      "",
+      `Unknown columns: ${
+        p.unknownFields.length ? p.unknownFields.join(", ") : "none"
+      }`,
+      ...(p.issues.length ? ["", "Issues:", ...p.issues.map((i) => ` - ${i}`)] : []),
+      ...(p.sampleErrors.length
+        ? [
+            "",
+            `Sample row errors (first ${p.sampleErrors.length}):`,
+            ...p.sampleErrors.map((e) => ` - row ${e.row}: ${e.issue}`),
+          ]
+        : []),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `import-preview-${p.object}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const previewTotal = preview
+    ? preview.willInsert + preview.willUpdate + preview.willDelete
+    : 0;
+  const canApprove = Boolean(
+    preview && preview.issues.length === 0 && previewTotal > 0
+  );
+
+  /** Approve the previewed import; destructive ops still get a typed confirm. */
+  function onApprove() {
     if (isDestructive) {
       setConfirmText("");
       setConfirming(true);
@@ -216,6 +322,7 @@ function BulkImport() {
 
   async function start() {
     setConfirming(false);
+    setPreview(null);
     setStarting(true);
     setError(null);
     setDone(false);
@@ -254,11 +361,12 @@ function BulkImport() {
       <div className="row" style={{ gap: 16 }}>
         <div style={{ flex: 1, minWidth: 180 }}>
           <label htmlFor="imp-object">Object (API name)</label>
-          <input
+          <ObjectPicker
             id="imp-object"
-            placeholder="Account"
+            objects={objects}
             value={object}
-            onChange={(e) => setObject(e.target.value)}
+            onSelect={setObject}
+            placeholder="Account"
           />
         </div>
         <div style={{ flex: 1, minWidth: 180 }}>
@@ -311,17 +419,11 @@ function BulkImport() {
 
       <div className="row" style={{ marginTop: 12 }}>
         <button
-          className={`btn${isDestructive ? " danger" : ""}`}
-          onClick={onRunClick}
-          disabled={starting || !object || !csv.trim()}
+          className="btn"
+          onClick={runPreview}
+          disabled={previewing || starting || !object || !csv.trim()}
         >
-          {starting
-            ? "Uploading…"
-            : operation === "hardDelete"
-            ? "Hard delete…"
-            : operation === "delete"
-            ? "Delete records…"
-            : "Run import"}
+          {previewing ? "Analyzing…" : "Preview import"}
         </button>
         {job && !done && (
           <span className="muted">
@@ -330,11 +432,107 @@ function BulkImport() {
         )}
       </div>
 
+      {preview && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0 }}>
+              Preview — {preview.object}{" "}
+              <span className="muted" style={{ fontWeight: 400 }}>
+                ({preview.operation})
+              </span>
+            </h3>
+            <span className="muted">
+              {preview.analyzedRows.toLocaleString()} of{" "}
+              {preview.totalRows.toLocaleString()} rows analyzed
+              {preview.truncated ? " (capped)" : ""}
+            </span>
+          </div>
+
+          <div className="preview-stats">
+            {preview.willInsert > 0 && (
+              <span className="badge ok">
+                {preview.willInsert.toLocaleString()} insert
+              </span>
+            )}
+            {preview.willUpdate > 0 && (
+              <span className="badge ok">
+                {preview.willUpdate.toLocaleString()} update
+              </span>
+            )}
+            {preview.willDelete > 0 && (
+              <span className="badge off">
+                {preview.willDelete.toLocaleString()} delete
+              </span>
+            )}
+            {preview.notFound > 0 && (
+              <span className="badge off">
+                {preview.notFound.toLocaleString()} not found
+              </span>
+            )}
+          </div>
+
+          {preview.unknownFields.length > 0 && (
+            <p className="muted" style={{ marginTop: 10 }}>
+              ⚠️ Columns not on this object (will be rejected by Salesforce):{" "}
+              <code>{preview.unknownFields.join(", ")}</code>
+            </p>
+          )}
+          {preview.issues.length > 0 && (
+            <div className="alert error" style={{ marginTop: 10 }}>
+              {preview.issues.map((i, n) => (
+                <div key={n}>{i}</div>
+              ))}
+            </div>
+          )}
+          {preview.sampleErrors.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary className="muted" style={{ cursor: "pointer" }}>
+                {preview.sampleErrors.length} sample row issue(s)
+              </summary>
+              <ul style={{ margin: "6px 0 0", fontSize: 13 }}>
+                {preview.sampleErrors.map((e, n) => (
+                  <li key={n}>
+                    row {e.row}: {e.issue}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          <div className="row" style={{ marginTop: 14, gap: 8 }}>
+            <button
+              className={`btn${isDestructive ? " danger" : ""}`}
+              onClick={onApprove}
+              disabled={!canApprove || starting}
+            >
+              {starting
+                ? "Uploading…"
+                : isDestructive
+                ? `Approve & ${
+                    operation === "hardDelete" ? "hard delete" : "delete"
+                  } ${previewTotal.toLocaleString()}`
+                : `Approve & run import (${previewTotal.toLocaleString()})`}
+            </button>
+            <button className="btn secondary" onClick={downloadReport}>
+              Download report
+            </button>
+            <button className="btn secondary" onClick={() => setPreview(null)}>
+              Cancel
+            </button>
+          </div>
+          {!canApprove && preview.issues.length === 0 && previewTotal === 0 && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              Nothing to import — no rows would be inserted, updated, or deleted.
+            </p>
+          )}
+        </div>
+      )}
+
       {confirming && (
         <DestructiveConfirm
           operation={operation}
           object={object}
-          rowCount={rowCount}
+          rowCount={preview ? preview.willDelete : rowCount}
           confirmText={confirmText}
           setConfirmText={setConfirmText}
           onCancel={() => setConfirming(false)}

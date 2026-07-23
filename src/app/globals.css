@@ -260,6 +260,17 @@ label {
   color: #c7f9e5;
 }
 
+/* Bulk import preview stat badges */
+.preview-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.preview-stats .badge {
+  font-size: 13px;
+}
+
 /* Friendly error notice */
 .error-notice-head {
   display: flex;

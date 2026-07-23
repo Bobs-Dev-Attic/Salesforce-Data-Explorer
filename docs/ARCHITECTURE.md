@@ -65,6 +65,7 @@ src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated
   salesforce/record-counts               /limits/recordCount
   salesforce/export                      CSV / XLSX / JSON export
   salesforce/bulk/{query,ingest}/...     Bulk API 2.0
+  salesforce/bulk/preview                import dry-run (insert/update/delete counts)
   salesforce/saved-queries[/id]          saved builder state + SOQL
   salesforce/debug                       diagnostics (app-auth gated, no secrets)
   admin/rekey                            re-encrypt secrets under the active key

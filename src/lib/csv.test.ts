@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { csvCell, csvHeader, csvRow, toCsv } from "./csv";
+import { csvCell, csvHeader, csvRow, toCsv, parseCsv } from "./csv";
 
 describe("csvCell", () => {
   it("leaves plain values untouched", () => {
@@ -27,6 +27,51 @@ describe("csvCell", () => {
 
   it("does not prefix a safe value that merely contains = later", () => {
     expect(csvCell("a=b")).toBe("a=b");
+  });
+});
+
+describe("parseCsv", () => {
+  it("parses a simple document", () => {
+    const { headers, rows } = parseCsv("Id,Name\r\n1,Acme\r\n2,Globex");
+    expect(headers).toEqual(["Id", "Name"]);
+    expect(rows).toEqual([
+      ["1", "Acme"],
+      ["2", "Globex"],
+    ]);
+  });
+
+  it("handles quoted fields with commas and escaped quotes", () => {
+    const { headers, rows } = parseCsv(
+      'Id,Name\n1,"Acme, Inc."\n2,"He said ""hi"""'
+    );
+    expect(headers).toEqual(["Id", "Name"]);
+    expect(rows[0]).toEqual(["1", "Acme, Inc."]);
+    expect(rows[1]).toEqual(["2", 'He said "hi"']);
+  });
+
+  it("handles newlines inside quoted fields", () => {
+    const { rows } = parseCsv('Id,Note\n1,"line1\nline2"');
+    expect(rows[0]).toEqual(["1", "line1\nline2"]);
+  });
+
+  it("ignores blank trailing lines and handles no trailing newline", () => {
+    const { headers, rows } = parseCsv("A,B\nx,y\n\n");
+    expect(headers).toEqual(["A", "B"]);
+    expect(rows).toEqual([["x", "y"]]);
+  });
+
+  it("round-trips with toCsv for plain data", () => {
+    const cols = ["Id", "Name"];
+    const data = [
+      { Id: "1", Name: "Acme, Inc." },
+      { Id: "2", Name: 'Quote"' },
+    ];
+    const { headers, rows } = parseCsv(toCsv(data, cols));
+    expect(headers).toEqual(cols);
+    expect(rows).toEqual([
+      ["1", "Acme, Inc."],
+      ["2", 'Quote"'],
+    ]);
   });
 });
 

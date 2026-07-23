@@ -3,6 +3,25 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.31.0] - 2026-07-23
+
+### Added
+
+- **Bulk import dry-run preview** — before running an import you can now
+  **Preview import**: `POST /api/salesforce/bulk/preview` analyzes the CSV
+  against the org and reports what *would* happen — **X insert / Y update /
+  Z delete / N not-found** — without touching data. It validates columns
+  against the object's fields (flags unknown columns), and for update/delete
+  looks up which `Id`s exist, for upsert which external-ID values match. A
+  **Download report** button saves the summary, and **Approve & run import**
+  proceeds (destructive ops still require the typed confirmation). Existence
+  checks are capped at 10,000 rows (reported when truncated).
+- **Object picker on the import form** — the "Object (API name)" field is now
+  the same searchable combobox + directory dialog used elsewhere (recents,
+  browse-all), instead of a plain text input.
+- New `parseCsv` (RFC-4180-ish: quotes, escaped quotes, embedded newlines) in
+  `src/lib/csv.ts`, with unit tests (65 total).
+
 ## [0.30.0] - 2026-07-23
 
 ### Added
