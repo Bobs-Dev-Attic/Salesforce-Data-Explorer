@@ -18,14 +18,24 @@ export function csvCell(v: string): string {
   return s;
 }
 
+/** Serialize the header row for a given column order. */
+export function csvHeader(columns: string[]): string {
+  return columns.map(csvCell).join(",");
+}
+
+/** Serialize a single flattened row against a fixed column order. */
+export function csvRow(row: Record<string, string>, columns: string[]): string {
+  return columns.map((c) => csvCell(row[c] ?? "")).join(",");
+}
+
 /** Build a CRLF-delimited CSV document from flattened rows and a column order. */
 export function toCsv(
   rows: Record<string, string>[],
   columns: string[]
 ): string {
-  const lines = [columns.map(csvCell).join(",")];
+  const lines = [csvHeader(columns)];
   for (const row of rows) {
-    lines.push(columns.map((c) => csvCell(row[c] ?? "")).join(","));
+    lines.push(csvRow(row, columns));
   }
   return lines.join("\r\n");
 }

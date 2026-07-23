@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { csvCell, toCsv } from "./csv";
+import { csvCell, csvHeader, csvRow, toCsv } from "./csv";
 
 describe("csvCell", () => {
   it("leaves plain values untouched", () => {
@@ -27,6 +27,31 @@ describe("csvCell", () => {
 
   it("does not prefix a safe value that merely contains = later", () => {
     expect(csvCell("a=b")).toBe("a=b");
+  });
+});
+
+describe("csvHeader / csvRow (streaming helpers)", () => {
+  it("serializes a header row", () => {
+    expect(csvHeader(["Id", "Name"])).toBe("Id,Name");
+  });
+
+  it("serializes a single row against a fixed column order", () => {
+    expect(csvRow({ Id: "1", Name: "Acme" }, ["Id", "Name"])).toBe("1,Acme");
+  });
+
+  it("fills missing columns and escapes as needed", () => {
+    expect(csvRow({ Id: "1", Name: "=EVIL" }, ["Id", "Name", "X"])).toBe(
+      "1,'=EVIL,"
+    );
+  });
+
+  it("header+rows joined by CRLF reproduce toCsv", () => {
+    const cols = ["Id", "Name"];
+    const rows = [{ Id: "1", Name: "Acme" }];
+    const streamed = [csvHeader(cols), ...rows.map((r) => csvRow(r, cols))].join(
+      "\r\n"
+    );
+    expect(streamed).toBe(toCsv(rows, cols));
   });
 });
 

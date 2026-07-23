@@ -88,7 +88,7 @@ All tables: `alter table ... enable row level security;` with **no policies** (s
 ## Key flows
 
 - **Access token**: `getAccessToken(connectionId)` in `salesforce.ts` returns a **per-connection in-memory cached** token, minting via refresh_token/client_credentials only when the cache is empty or near expiry (honors `expires_in`, else `SF_TOKEN_TTL_SECONDS` default 15 min). `sfFetch`/`bulkFetch` re-mint once on a `401`; `disconnect` clears the entry. Cache is per warm serverless instance.
-- **Export**: `runSoql` (≤50k rows) → flatten → CSV/JSON/XLSX built fully in memory in the serverless function.
+- **Export** (≤50k rows): CSV/JSON **stream** page by page via `streamSoql` + a `ReadableStream` (one Salesforce batch in memory at a time; columns fixed from the first batch). XLSX stays buffered (`runSoql` → full matrix → ZIP).
 - **Bulk import**: CSV is sent as a JSON string in the POST body (bounded by Vercel's ~4.5MB body limit).
 
 ## Deploy / versioning workflow (also see AGENTS.md)

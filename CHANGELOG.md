@@ -3,6 +3,24 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-07-23
+
+### Changed
+
+- **Streamed CSV/JSON exports (P2)** — the export route previously buffered the
+  entire result set (up to 50k rows) in serverless memory before responding,
+  risking OOM on large/wide datasets. CSV and JSON now stream page by page via a
+  new `streamSoql` async generator and a `ReadableStream`, holding just one
+  Salesforce batch in memory at a time. Columns are fixed from the first batch
+  (SOQL's SELECT determines the schema). A bad query still surfaces as a clean
+  `400` because the first page is fetched before the streaming `200` is
+  committed. XLSX stays buffered (a ZIP needs the full matrix up front).
+
+### Added
+
+- `csvHeader` / `csvRow` helpers in `src/lib/csv.ts` for row-at-a-time
+  serialization, with unit tests (32 tests total).
+
 ## [0.23.0] - 2026-07-23
 
 ### Added
