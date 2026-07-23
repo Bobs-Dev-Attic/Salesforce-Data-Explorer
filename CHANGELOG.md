@@ -3,6 +3,27 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-07-23
+
+### Accessibility (P2)
+
+- **Schema map is now keyboard-navigable** — each related-object node in the SVG
+  relationship map is a focusable `role="button"` with an `aria-label`,
+  activatable via Enter/Space, and a visible focus ring (thicker node stroke).
+  The `<svg>` carries a descriptive `aria-label` summarizing the map.
+- **Object directory dialog** now traps focus, closes on Escape, and restores
+  focus on close (`useFocusTrap`), with `role="dialog"` + `aria-modal`; its rows
+  are keyboard-activatable buttons.
+- **Object Explorer field rows** are keyboard-focusable and open the metadata
+  dialog via Enter/Space, with an `aria-label` and inset focus ring.
+- Converted the schema map's "Show all/fewer" link from an `<a href="#">` to a
+  real button.
+
+This completes the targeted a11y items (modals, SVG schema map, focus rings,
+aria-labels). Remaining a11y follow-ups tracked in `TODO.md`: a full WAI-ARIA
+tree pattern (arrow-key nav) for the Object Explorer tree, and an automated axe
+check in CI.
+
 ## [0.26.0] - 2026-07-23
 
 ### Added

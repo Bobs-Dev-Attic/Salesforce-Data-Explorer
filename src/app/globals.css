@@ -610,6 +610,15 @@ td.actions-cell {
 .schema-node:hover {
   stroke: var(--accent);
 }
+/* SVG focus rings are unreliable across browsers, so indicate keyboard focus by
+   thickening the node's own stroke. */
+.schema-node-group {
+  outline: none;
+}
+.schema-node-group:focus-visible .schema-node {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
 .schema-node.left {
   fill: rgba(43, 140, 255, 0.12);
 }
@@ -911,6 +920,13 @@ th {
 tbody tr:hover {
   background: rgba(43, 140, 255, 0.06);
 }
+/* Keyboard focus for interactive (clickable) table rows — inset so the ring
+   isn't clipped by the scroll container. */
+tbody tr[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: rgba(43, 140, 255, 0.06);
+}
 
 .grid2 {
   display: grid;
@@ -936,6 +952,11 @@ tbody tr:hover {
 }
 .list-item:hover {
   background: var(--panel-2);
+}
+.list-item:focus-visible {
+  background: var(--panel-2);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .list-item.active {
   background: rgba(43, 140, 255, 0.14);

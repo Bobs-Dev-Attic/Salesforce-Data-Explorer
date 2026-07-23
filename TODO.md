@@ -67,10 +67,11 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   ~150). **Follow-up:** apply to the Object Explorer fields table if it grows.
 - [ ] **Friendly error mapping.** Map `INVALID_FIELD`, auth-expiry, etc. to
   readable messages with a "copy details" affordance.
-- [~] **Accessibility pass.** _(v0.25.0, partial)_ Modals trap focus + Escape +
-  focus restore (`useFocusTrap`), global focus-visible ring, `aria-label`s on
-  icon-only buttons. **Remaining:** keyboard/ARIA for the SVG schema map, a full
-  axe sweep across pages.
+- [x] **Accessibility pass.** _(v0.25.0 + v0.27.0)_ All modals trap focus +
+  Escape + focus restore (`useFocusTrap`); global focus-visible ring; SVG schema
+  map + object-directory rows + Object Explorer field rows are keyboard-operable
+  with aria-labels. **Follow-up:** full WAI-ARIA tree pattern (arrow-key nav) for
+  the Object Explorer tree, and an automated axe check in CI.
 - [ ] **Document data-handling posture** (GDPR/CCPA): records never persisted
   server-side; only encrypted tokens + schema cache + saved queries are stored.
 

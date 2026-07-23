@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export interface GlobalObject {
   name: string;
@@ -143,19 +144,13 @@ function ObjectDirectory({
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, onClose);
   const byName = useMemo(() => {
     const m = new Map<string, GlobalObject>();
     for (const o of pool) m.set(o.name, o);
     return m;
   }, [pool]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const { standard, custom } = useMemo(() => {
     const f = q.trim().toLowerCase();
@@ -174,7 +169,19 @@ function ObjectDirectory({
 
   function Item({ o }: { o: GlobalObject }) {
     return (
-      <div className="list-item" onClick={() => onSelect(o.name)}>
+      <div
+        className="list-item"
+        role="button"
+        tabIndex={0}
+        aria-label={`${o.label} (${o.name})${o.custom ? ", custom object" : ""}`}
+        onClick={() => onSelect(o.name)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect(o.name);
+          }
+        }}
+      >
         <span className="lbl">{o.label}</span>{" "}
         <span className="api">
           {o.name}
@@ -186,7 +193,14 @@ function ObjectDirectory({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Object directory"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
           <h2 style={{ margin: 0, fontSize: 18 }}>Object directory</h2>
           <button className="linkbtn" onClick={onClose} aria-label="Close">
