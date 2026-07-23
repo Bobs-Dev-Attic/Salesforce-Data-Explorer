@@ -3,6 +3,13 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.22.1] - 2026-07-23
+
+### Added
+
+- **MIT LICENSE (P1)** — added an MIT `LICENSE` file and a `license` field in
+  `package.json`, resolving the legal/compliance gap flagged in the review.
+
 ## [0.22.0] - 2026-07-23
 
 ### Added

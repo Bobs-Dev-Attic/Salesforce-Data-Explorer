@@ -78,3 +78,7 @@ Connected App. Push to the default branch to deploy.
 
 Semantic Versioning. Every change bumps `package.json` and is recorded in
 [`CHANGELOG.md`](./CHANGELOG.md); releases are tagged in git.
+
+## License
+
+[MIT](./LICENSE).
