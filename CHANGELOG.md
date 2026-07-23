@@ -3,7 +3,25 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.22.1] - 2026-07-23
+## [0.23.0] - 2026-07-23
+
+### Added
+
+- **Destructive-op confirmation (P2)** — Bulk **Delete** and **Hard delete**
+  imports now require an explicit confirmation: a modal shows the operation, the
+  target object, and the CSV row count, and the confirm button stays disabled
+  until you type the exact object name. Hard delete carries an extra
+  "permanent / bypasses Recycle Bin" warning. Non-destructive ops (insert /
+  update / upsert) run as before. The Run button turns red and relabels for
+  destructive operations.
+
+### Fixed
+
+- **SOQL Editor light-mode contrast** — the editor was hardcoded to a dark
+  background while its base (non-keyword) text used the theme text color, which
+  turned dark in light mode → unreadable columns. The editor now uses dedicated,
+  theme-aware variables: in light mode a white background with dark text and
+  high-contrast keyword/string/number colors; dark mode is unchanged.
 
 ### Added
 

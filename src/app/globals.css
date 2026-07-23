@@ -10,6 +10,15 @@
   --danger: #ff5c6c;
   --ok: #34d399;
   --radius: 10px;
+
+  /* SOQL editor (dark theme) */
+  --editor-bg: #0d1526;
+  --editor-gutter-bg: #0b1220;
+  --editor-gutter-fg: #4b5b78;
+  --editor-fg: #e6ecf5;
+  --editor-tok-kw: #6aa9ff;
+  --editor-tok-str: #7ee0a1;
+  --editor-tok-num: #ffb86b;
 }
 
 :root[data-theme="light"] {
@@ -23,6 +32,15 @@
   --accent-2: #0a86bd;
   --danger: #d92c4b;
   --ok: #0a9d63;
+
+  /* SOQL editor (light theme) — high-contrast on a light background */
+  --editor-bg: #ffffff;
+  --editor-gutter-bg: #eef2f8;
+  --editor-gutter-fg: #94a3b8;
+  --editor-fg: #1e293b;
+  --editor-tok-kw: #1d4ed8;
+  --editor-tok-str: #047857;
+  --editor-tok-num: #b45309;
 }
 
 * {
@@ -318,14 +336,14 @@ td.actions-cell {
   display: flex;
   font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   font-size: 13px;
-  background: #0d1526;
+  background: var(--editor-bg);
 }
 .sqled-gutter {
   user-select: none;
   text-align: right;
   padding: 12px 8px;
-  color: #4b5b78;
-  background: #0b1220;
+  color: var(--editor-gutter-fg);
+  background: var(--editor-gutter-bg);
   border-right: 1px solid var(--border);
   overflow: hidden;
   white-space: pre;
@@ -353,7 +371,7 @@ td.actions-cell {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  color: var(--text);
+  color: var(--editor-fg);
   pointer-events: none;
   z-index: 0;
 }
@@ -366,7 +384,7 @@ td.actions-cell {
   outline: none;
   background: transparent;
   color: transparent;
-  caret-color: var(--text);
+  caret-color: var(--editor-fg);
   overflow: auto;
   z-index: 1;
 }
@@ -374,14 +392,14 @@ td.actions-cell {
   color: var(--muted);
 }
 .tok-kw {
-  color: #6aa9ff;
+  color: var(--editor-tok-kw);
   font-weight: 600;
 }
 .tok-str {
-  color: #7ee0a1;
+  color: var(--editor-tok-str);
 }
 .tok-num {
-  color: #ffb86b;
+  color: var(--editor-tok-num);
 }
 .sqled-results-head {
   display: flex;

@@ -48,8 +48,10 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   rotating nonce, or migrate to Supabase Auth.
 - [ ] **Key management.** Move `CREDENTIALS_ENCRYPTION_KEY` to Supabase Vault /
   a KMS; enable rotation. (Encryption itself is correct.)
-- [ ] **Confirm destructive Bulk ops.** `bulk/ingest` `delete`/`hardDelete` runs
-  from a button — require typing the object name / row count first.
+- [x] **Confirm destructive Bulk ops.** _(v0.23.0)_ `delete`/`hardDelete`
+  imports open a typed-confirmation modal (object name + row count; hard-delete
+  permanence warning) before running. **Follow-up:** optional server-side guard
+  (require a `confirm` flag) for defense in depth.
 - [ ] **Stream large exports.** `export` and bulk results buffer up to 50k rows
   in serverless memory (OOM risk). Use `ReadableStream` / Bulk 2.0 download.
 - [ ] **Bulk import CSV off the JSON body.** `bulk/ingest` reads `body.csv`

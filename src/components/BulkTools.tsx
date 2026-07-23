@@ -21,6 +21,14 @@ const OPERATIONS = [
 
 const TERMINAL = ["JobComplete", "Failed", "Aborted"];
 
+const DESTRUCTIVE = new Set(["delete", "hardDelete"]);
+
+/** Count CSV data rows (excluding the header and blank lines). */
+function csvRowCount(csv: string): number {
+  const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  return Math.max(lines.length - 1, 0);
+}
+
 function useJobPoller(
   kind: "query" | "ingest",
   jobId: string | null,
@@ -177,8 +185,23 @@ function BulkImport() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [done, setDone] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
 
   const job = useJobPoller("ingest", jobId, () => setDone(true));
+
+  const isDestructive = DESTRUCTIVE.has(operation);
+  const rowCount = csvRowCount(csv);
+
+  /** Destructive ops (delete / hardDelete) go through a typed confirmation. */
+  function onRunClick() {
+    if (isDestructive) {
+      setConfirmText("");
+      setConfirming(true);
+    } else {
+      start();
+    }
+  }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -190,6 +213,7 @@ function BulkImport() {
   }
 
   async function start() {
+    setConfirming(false);
     setStarting(true);
     setError(null);
     setDone(false);
@@ -285,11 +309,17 @@ function BulkImport() {
 
       <div className="row" style={{ marginTop: 12 }}>
         <button
-          className="btn"
-          onClick={start}
+          className={`btn${isDestructive ? " danger" : ""}`}
+          onClick={onRunClick}
           disabled={starting || !object || !csv.trim()}
         >
-          {starting ? "Uploading…" : "Run import"}
+          {starting
+            ? "Uploading…"
+            : operation === "hardDelete"
+            ? "Hard delete…"
+            : operation === "delete"
+            ? "Delete records…"
+            : "Run import"}
         </button>
         {job && !done && (
           <span className="muted">
@@ -297,6 +327,18 @@ function BulkImport() {
           </span>
         )}
       </div>
+
+      {confirming && (
+        <DestructiveConfirm
+          operation={operation}
+          object={object}
+          rowCount={rowCount}
+          confirmText={confirmText}
+          setConfirmText={setConfirmText}
+          onCancel={() => setConfirming(false)}
+          onConfirm={start}
+        />
+      )}
 
       {error && (
         <div className="alert error" style={{ marginTop: 12 }}>
@@ -344,6 +386,92 @@ function BulkImport() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------
+// Destructive-op confirmation
+// ------------------------------------------------------------------
+function DestructiveConfirm({
+  operation,
+  object,
+  rowCount,
+  confirmText,
+  setConfirmText,
+  onCancel,
+  onConfirm,
+}: {
+  operation: string;
+  object: string;
+  rowCount: number;
+  confirmText: string;
+  setConfirmText: (v: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const hard = operation === "hardDelete";
+  const verb = hard ? "Hard delete" : "Delete";
+  const matches = confirmText.trim() === object.trim() && object.trim() !== "";
+
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Confirm ${verb.toLowerCase()}`}
+    >
+      <div
+        className="modal"
+        style={{ maxWidth: 460 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <strong style={{ color: "var(--danger)" }}>⚠️ Confirm {verb.toLowerCase()}</strong>
+          <button className="linkbtn" onClick={onCancel} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div style={{ padding: "14px 18px" }}>
+          <p style={{ marginTop: 0 }}>
+            You are about to <strong>{verb.toLowerCase()}</strong>{" "}
+            <strong>{rowCount.toLocaleString()}</strong> record
+            {rowCount === 1 ? "" : "s"} from{" "}
+            <strong>{object || "(no object)"}</strong> in the active connection.
+          </p>
+          {hard && (
+            <div className="alert error" style={{ marginBottom: 12 }}>
+              Hard delete permanently removes records, bypassing the Recycle Bin.
+              This cannot be undone.
+            </div>
+          )}
+          <label htmlFor="confirm-object">
+            Type the object name <code>{object}</code> to confirm
+          </label>
+          <input
+            id="confirm-object"
+            autoFocus
+            value={confirmText}
+            placeholder={object}
+            onChange={(e) => setConfirmText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && matches) onConfirm();
+            }}
+          />
+          <div
+            className="row"
+            style={{ marginTop: 16, justifyContent: "flex-end", gap: 8 }}
+          >
+            <button className="btn secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            <button className="btn danger" onClick={onConfirm} disabled={!matches}>
+              {verb} {rowCount.toLocaleString()} record{rowCount === 1 ? "" : "s"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
