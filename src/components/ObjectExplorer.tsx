@@ -613,16 +613,23 @@ function FieldMetadataDialog({
           </button>
         </div>
         <div className="modal-body">
-          <table className="meta-table">
-            <tbody>
-              {ordered.map((k) => (
-                <tr key={k}>
-                  <th>{k}</th>
-                  <td>{renderValue(k, field[k])}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="meta-grid">
+            {ordered.map((k) => {
+              const v = field[k];
+              const fullWidth =
+                k === "picklistValues" ||
+                (typeof v === "object" && v !== null && !Array.isArray(v));
+              return (
+                <div
+                  key={k}
+                  className={`meta-item${fullWidth ? " full" : ""}`}
+                >
+                  <div className="meta-key">{k}</div>
+                  <div className="meta-val">{renderValue(k, v)}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
