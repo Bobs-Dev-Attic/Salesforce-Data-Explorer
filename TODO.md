@@ -37,8 +37,9 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   gates PRs + pushes on typecheck → lint → test → build. **Follow-up:** broaden
   coverage — SOQL builder value quoting, `xlsx` validity assertion, and route-level
   integration tests.
-- [ ] **Add a LICENSE** (or mark explicitly private). Add a short privacy note
-  if it ever leaves personal use.
+- [x] **Add a LICENSE.** _(v0.22.1)_ MIT `LICENSE` + `license` field in
+  `package.json`. **Follow-up:** add a short privacy note if it ever leaves
+  personal use.
 
 ## P2 — Medium priority
 
