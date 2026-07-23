@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import "./globals.css";
 import { isAuthenticated } from "@/lib/session";
 import GlobalProgress from "@/components/GlobalProgress";
@@ -24,10 +25,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const authed = isAuthenticated();
+  const nonce = headers().get("x-nonce") ?? undefined;
   return (
     <html lang="en" data-theme="dark">
       <body>
-        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInit }} />
         <GlobalProgress />
         <header className="topbar">
           <Link href="/" className="brand">

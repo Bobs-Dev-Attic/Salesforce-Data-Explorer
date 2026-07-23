@@ -10,20 +10,22 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
 
 ## P0 — Do before any additional exposure
 
-- [ ] **Rate-limit `POST /api/app-auth/login`.** One shared password + unlimited
-  guesses = brute-force surface. Add per-IP throttle + lockout/backoff
-  (Vercel middleware + Upstash Redis, or Vercel WAF). Enforce a strong
-  `APP_PASSWORD` (length/entropy check at boot). _(REVIEW §1)_
+- [x] **Rate-limit `POST /api/app-auth/login`.** _(v0.20.0)_ Per-IP limiter in
+  `src/lib/rateLimit.ts`: 5 fails / 15-min window → 15-min lockout (`429` +
+  `Retry-After`); success clears the counter. **Follow-up:** the in-memory
+  limiter is per-warm-instance — move to Upstash Redis / Vercel WAF for a
+  durable, cross-instance limit, and add an `APP_PASSWORD` strength check at boot.
 
 ## P1 — High priority
 
-- [ ] **Security headers / CSP.** Add `headers()` in `next.config.js`:
-  `Content-Security-Policy` (nonce for the `layout.tsx` theme-init inline
-  script), `X-Frame-Options: DENY` / `frame-ancestors 'none'`,
-  `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
-- [ ] **CSV / formula injection in exports.** `export/route.ts#csvCell` must
-  neutralize leading `= + - @` (and tab/CR) — prefix with `'` or wrap. XLSX
-  path is already safe (`inlineStr`).
+- [x] **Security headers / CSP.** _(v0.20.0)_ Nonce-based CSP in
+  `src/middleware.ts` (`strict-dynamic`, `frame-ancestors 'none'`,
+  `object-src 'none'`, `upgrade-insecure-requests`) + static headers in
+  `next.config.js` (`X-Frame-Options`, `nosniff`, `Referrer-Policy`,
+  `Permissions-Policy`, HSTS). Theme-init script carries the nonce.
+- [x] **CSV / formula injection in exports.** _(v0.20.0)_
+  `export/route.ts#csvCell` prefixes cells starting with `= + - @` (or tab/CR)
+  with `'`. XLSX path already safe (`inlineStr`).
 - [ ] **Cache the Salesforce access token.** `getAccessToken` currently mints a
   fresh token on every `sfFetch`. Cache per connection until near expiry
   (in-memory LRU, or encrypted `access_token`+`expires_at` in Supabase).

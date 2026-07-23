@@ -3,6 +3,27 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-07-23
+
+### Security
+
+- **Login rate limiting (P0)** — `POST /api/app-auth/login` now enforces a
+  per-IP limiter (`src/lib/rateLimit.ts`): 5 failed attempts in a 15-minute
+  window trigger a 15-minute lockout, returning `429` with a `Retry-After`
+  header. Successful logins clear the counter. This closes the unlimited
+  brute-force window against the shared `APP_PASSWORD`. (In-memory/per-instance
+  baseline; a durable Redis/WAF limiter remains tracked in `TODO.md`.)
+- **Security headers + Content-Security-Policy (P1)** — added a nonce-based CSP
+  via `src/middleware.ts` (`default-src 'self'`, `strict-dynamic` scripts,
+  `frame-ancestors 'none'`, `object-src 'none'`, `upgrade-insecure-requests`)
+  and static headers in `next.config.js` (`X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+  HSTS). The inline theme-init script now carries the request nonce.
+- **CSV formula-injection hardening (P1)** — `export/route.ts#csvCell` now
+  prefixes cells beginning with `= + - @` (or tab/CR) with a single quote so
+  exported CSVs can't execute as formulas in Excel / Google Sheets. The XLSX
+  path already used `inlineStr` and was unaffected.
+
 ## [0.19.1] - 2026-07-23
 
 ### Added
