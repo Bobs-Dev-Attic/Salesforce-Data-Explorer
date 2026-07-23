@@ -89,6 +89,69 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
   return { headers, rows: records.slice(1) };
 }
 
+/**
+ * Split raw CSV text into records on *unquoted* newlines, preserving each
+ * record's original bytes (quotes, embedded newlines, etc.). Returns the header
+ * record plus the data records. CRLF is normalized to LF at record boundaries.
+ */
+export function rawCsvRecords(text: string): {
+  header: string;
+  records: string[];
+} {
+  const recs: string[] = [];
+  let start = 0;
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      // A doubled "" toggles off then on (net no change), so a plain toggle
+      // correctly tracks whether we're inside a quoted field.
+      inQuotes = !inQuotes;
+    } else if (c === "\n" && !inQuotes) {
+      let rec = text.slice(start, i);
+      if (rec.endsWith("\r")) rec = rec.slice(0, -1);
+      recs.push(rec);
+      start = i + 1;
+    }
+  }
+  if (start < text.length) {
+    let rec = text.slice(start);
+    if (rec.endsWith("\r")) rec = rec.slice(0, -1);
+    recs.push(rec);
+  }
+  while (recs.length && recs[recs.length - 1].trim() === "") recs.pop();
+  return { header: recs.length ? recs[0] : "", records: recs.slice(1) };
+}
+
+/**
+ * Split a CSV document into LF-joined chunks each no larger than `maxBytes`
+ * (UTF-8), repeating the header on every chunk. Lets a large import be sent as
+ * several requests under a platform body-size limit without splitting a record.
+ * A single record larger than `maxBytes` still gets its own (over-size) chunk.
+ */
+export function splitCsvIntoChunks(text: string, maxBytes: number): string[] {
+  const { header, records } = rawCsvRecords(text);
+  if (!header) return [];
+  if (records.length === 0) return [header];
+  const enc = new TextEncoder();
+  const headerBytes = enc.encode(header + "\n").length;
+  const chunks: string[] = [];
+  let cur: string[] = [];
+  let curBytes = headerBytes;
+  for (const rec of records) {
+    const recBytes = enc.encode(rec + "\n").length;
+    if (cur.length > 0 && curBytes + recBytes > maxBytes) {
+      chunks.push(header + "\n" + cur.join("\n"));
+      cur = [];
+      curBytes = headerBytes;
+    }
+    cur.push(rec);
+    curBytes += recBytes;
+  }
+  if (cur.length) chunks.push(header + "\n" + cur.join("\n"));
+  return chunks;
+}
+
 /** Build a CRLF-delimited CSV document from flattened rows and a column order. */
 export function toCsv(
   rows: Record<string, string>[],

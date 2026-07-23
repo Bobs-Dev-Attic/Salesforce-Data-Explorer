@@ -59,8 +59,10 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   via `streamSoql` + `ReadableStream` (one batch in memory at a time). XLSX still
   buffers (ZIP needs the full matrix). **Follow-up:** for huge XLSX use Bulk 2.0
   streamed download; bulk import CSV still rides in the JSON body (separate item).
-- [ ] **Bulk import CSV off the JSON body.** `bulk/ingest` reads `body.csv`
-  (capped ~4.5MB by Vercel). Use streaming/multipart or direct-to-Salesforce.
+- [x] **Bulk import CSV off the JSON body.** _(v0.32.0)_ CSV is now the raw
+  `text/csv` request body (metadata in query params); large CSVs auto-chunk into
+  multiple sequential ingest jobs (`splitCsvIntoChunks`) with aggregated results,
+  lifting the practical size ceiling past a single 4.5 MB request.
 - [x] **`assertEnv()` at boot / health route.** _(v0.29.0)_ `src/lib/env.ts`
   (`assertEnv` + `checkEnv`) validates required vars; `GET /api/health` reports
   config health (no secret values); login fails fast with a clear `503` on

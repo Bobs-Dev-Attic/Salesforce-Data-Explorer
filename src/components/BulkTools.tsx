@@ -5,6 +5,17 @@ import { usePersistentState } from "@/lib/usePersistentState";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import ErrorNotice from "@/components/ErrorNotice";
 import ObjectPicker, { type GlobalObject } from "@/components/ObjectPicker";
+import { splitCsvIntoChunks } from "@/lib/csv";
+
+// Keep each upload comfortably under Vercel's ~4.5MB request-body limit.
+const MAX_CHUNK_BYTES = 3_500_000;
+
+interface ImportJobResult {
+  id: string;
+  state: string;
+  processed: number;
+  failed: number;
+}
 
 interface PreviewReport {
   object: string;
@@ -199,17 +210,15 @@ function BulkImport() {
   );
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [done, setDone] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [jobResults, setJobResults] = useState<ImportJobResult[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [objects, setObjects] = useState<GlobalObject[]>([]);
   const [preview, setPreview] = useState<PreviewReport | null>(null);
   const [previewing, setPreviewing] = useState(false);
-
-  const job = useJobPoller("ingest", jobId, () => setDone(true));
 
   const isDestructive = DESTRUCTIVE.has(operation);
   const rowCount = csvRowCount(csv);
@@ -307,7 +316,7 @@ function BulkImport() {
       setConfirmText("");
       setConfirming(true);
     } else {
-      start();
+      runImport();
     }
   }
 
@@ -320,35 +329,82 @@ function BulkImport() {
     reader.readAsText(file);
   }
 
-  async function start() {
+  /** Poll one ingest job until it reaches a terminal state. */
+  async function pollJob(
+    id: string,
+    onState: (s: string) => void
+  ): Promise<BulkJob> {
+    for (let i = 0; i < 2400; i++) {
+      const res = await fetch(`/api/salesforce/bulk/ingest/${id}`);
+      const data = (await res.json()) as BulkJob;
+      onState(data.state);
+      if (TERMINAL.includes(data.state)) return data;
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+    throw new Error("Import timed out while polling job status");
+  }
+
+  /**
+   * Run the import: split the CSV into chunks under the platform body limit and
+   * run each as its own ingest job sequentially, aggregating the results.
+   */
+  async function runImport() {
     setConfirming(false);
     setPreview(null);
     setStarting(true);
     setError(null);
-    setDone(false);
-    setJobId(null);
+    setJobResults([]);
+    setProgress("Preparing…");
     try {
-      const res = await fetch("/api/salesforce/bulk/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          object,
-          operation,
-          externalIdFieldName: operation === "upsert" ? externalId : undefined,
-          csv,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) setError(data.error || "Failed to start import");
-      else setJobId(data.jobId);
+      const chunks = splitCsvIntoChunks(csv, MAX_CHUNK_BYTES);
+      if (chunks.length === 0) {
+        setError("No CSV rows to import");
+        return;
+      }
+      const params = new URLSearchParams({ object, operation });
+      if (operation === "upsert" && externalId) {
+        params.set("externalIdFieldName", externalId);
+      }
+      const results: ImportJobResult[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const label =
+          chunks.length > 1 ? `part ${i + 1} of ${chunks.length}` : "data";
+        setProgress(`Uploading ${label}…`);
+        const res = await fetch(
+          `/api/salesforce/bulk/ingest?${params.toString()}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "text/csv" },
+            body: chunks[i],
+          }
+        );
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "Failed to start import");
+          setJobResults([...results]);
+          return;
+        }
+        const final = await pollJob(data.jobId, (state) =>
+          setProgress(`${label[0].toUpperCase()}${label.slice(1)}: ${state}…`)
+        );
+        results.push({
+          id: data.jobId,
+          state: final.state,
+          processed: final.numberRecordsProcessed ?? 0,
+          failed: final.numberRecordsFailed ?? 0,
+        });
+        setJobResults([...results]);
+      }
     } catch {
-      setError("Network error");
+      setError("Network error during import");
     } finally {
       setStarting(false);
+      setProgress(null);
     }
   }
 
-  const failedCount = job?.numberRecordsFailed ?? 0;
+  const totalProcessed = jobResults.reduce((n, j) => n + j.processed, 0);
+  const totalFailed = jobResults.reduce((n, j) => n + j.failed, 0);
 
   return (
     <div className="card">
@@ -425,11 +481,7 @@ function BulkImport() {
         >
           {previewing ? "Analyzing…" : "Preview import"}
         </button>
-        {job && !done && (
-          <span className="muted">
-            Job {job.id} · <strong>{job.state}</strong> — polling…
-          </span>
-        )}
+        {progress && <span className="muted">{progress}</span>}
       </div>
 
       {preview && (
@@ -536,7 +588,7 @@ function BulkImport() {
           confirmText={confirmText}
           setConfirmText={setConfirmText}
           onCancel={() => setConfirming(false)}
-          onConfirm={start}
+          onConfirm={runImport}
         />
       )}
 
@@ -546,44 +598,56 @@ function BulkImport() {
         </div>
       )}
 
-      {done && job && (
+      {jobResults.length > 0 && !starting && (
         <div
-          className={`alert ${failedCount > 0 ? "error" : "ok"}`}
+          className={`alert ${totalFailed > 0 ? "error" : "ok"}`}
           style={{ marginTop: 12 }}
         >
-          {job.state === "JobComplete" ? "✅" : "⚠️"} {job.state} —{" "}
-          {job.numberRecordsProcessed ?? 0} processed, {failedCount} failed.{" "}
-          {(job.numberRecordsProcessed ?? 0) > 0 && (
-            <>
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  download(
-                    `/api/salesforce/bulk/ingest/${job.id}/results?kind=successful`
-                  );
-                }}
-              >
-                Successful CSV
-              </a>
-              {failedCount > 0 && (
-                <>
-                  {" · "}
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      download(
-                        `/api/salesforce/bulk/ingest/${job.id}/results?kind=failed`
-                      );
-                    }}
-                  >
-                    Failed CSV
-                  </a>
-                </>
-              )}
-            </>
-          )}
+          {totalFailed > 0 ? "⚠️" : "✅"} Import complete —{" "}
+          {totalProcessed.toLocaleString()} processed, {totalFailed.toLocaleString()}{" "}
+          failed
+          {jobResults.length > 1 ? ` across ${jobResults.length} jobs` : ""}.
+          <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
+            {jobResults.map((j, i) => (
+              <div key={j.id} style={{ fontSize: 13 }}>
+                {jobResults.length > 1 && <strong>Part {i + 1}: </strong>}
+                {j.state} — {j.processed.toLocaleString()} processed,{" "}
+                {j.failed.toLocaleString()} failed{" "}
+                {j.processed > 0 && (
+                  <>
+                    ·{" "}
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        download(
+                          `/api/salesforce/bulk/ingest/${j.id}/results?kind=successful`
+                        );
+                      }}
+                    >
+                      Successful CSV
+                    </a>
+                  </>
+                )}
+                {j.failed > 0 && (
+                  <>
+                    {" · "}
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        download(
+                          `/api/salesforce/bulk/ingest/${j.id}/results?kind=failed`
+                        );
+                      }}
+                    >
+                      Failed CSV
+                    </a>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
