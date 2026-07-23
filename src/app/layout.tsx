@@ -4,7 +4,11 @@ import "./globals.css";
 import { isAuthenticated } from "@/lib/session";
 import GlobalProgress from "@/components/GlobalProgress";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
+import AppMenu from "@/components/AppMenu";
 import pkg from "../../package.json";
+
+// Apply the persisted theme before paint to avoid a flash of the wrong theme.
+const themeInit = `(function(){try{var t=localStorage.getItem('sfde.theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
 const appVersion = pkg.version;
 
@@ -21,8 +25,9 @@ export default function RootLayout({
 }) {
   const authed = isAuthenticated();
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark">
       <body>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <GlobalProgress />
         <header className="topbar">
           <Link href="/" className="brand">
@@ -38,12 +43,7 @@ export default function RootLayout({
               <Link href="/objects">Objects</Link>
               <Link href="/schema">Schema</Link>
               <Link href="/bulk">Bulk</Link>
-              <Link href="/connections">Connections</Link>
-              <form action="/api/app-auth/logout" method="post" className="inline">
-                <button type="submit" className="linkbtn">
-                  Lock
-                </button>
-              </form>
+              <AppMenu />
             </nav>
           )}
         </header>

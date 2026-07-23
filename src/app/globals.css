@@ -12,6 +12,19 @@
   --radius: 10px;
 }
 
+:root[data-theme="light"] {
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --panel-2: #eef2f8;
+  --border: #d6dde8;
+  --text: #17202f;
+  --muted: #5c6a82;
+  --accent: #1f6bff;
+  --accent-2: #0a86bd;
+  --danger: #d92c4b;
+  --ok: #0a9d63;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -430,6 +443,79 @@ td.actions-cell {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 190px;
+}
+
+/* Top-bar overflow menu */
+.appmenu {
+  position: relative;
+}
+.appmenu-btn {
+  font-size: 18px;
+  padding: 0 4px;
+  line-height: 1;
+}
+.appmenu form {
+  margin: 0;
+}
+.appmenu-panel {
+  position: absolute;
+  right: 0;
+  top: 150%;
+  z-index: 200;
+  min-width: 210px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+  padding: 8px;
+}
+.appmenu-theme {
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.appmenu-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.seg button {
+  flex: 1;
+  background: var(--panel-2);
+  border: none;
+  color: var(--muted);
+  padding: 7px 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.seg button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.appmenu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+.appmenu-item:hover {
+  background: var(--panel-2);
+  text-decoration: none;
 }
 
 /* Object picker (combobox + directory button) */

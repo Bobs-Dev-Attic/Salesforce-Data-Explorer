@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-07-23
+
+### Added
+
+- **Light / dark theme toggle** — switch themes from the new top-bar **menu**;
+  the choice persists in `localStorage` and is applied before first paint (no
+  flash). Colors are driven by CSS variables, so the whole app re-themes.
+- **Top-bar menu (☰)** — declutters the nav by housing the theme toggle,
+  **Connections**, and **Lock**.
+
 ## [0.17.0] - 2026-07-23
 
 ### Added
