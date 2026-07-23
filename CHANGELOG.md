@@ -3,6 +3,21 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-07-23
+
+### Added
+
+- **Data Explorer results grid** now matches the Object Explorer: click a column
+  header to **sort** (asc/desc, numeric-aware), and use the **funnel-icon column
+  filters** to narrow rows.
+- **Field metadata dialog** in the Data Explorer — an **ⓘ** button next to each
+  field in the column picker opens the same two-column metadata dialog.
+
+### Changed
+
+- Extracted the shared `FunnelIcon` and `FieldMetadataDialog` into
+  `src/components/fieldUi.tsx`, reused by both explorers for consistent styling.
+
 ## [0.14.1] - 2026-07-22
 
 ### Changed
