@@ -46,8 +46,10 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
 - [ ] **Session revocation / identity.** Cookie is `HMAC(expiryMs)` only — no
   revoke, no "log out everywhere." Add a server-side session store or a
   rotating nonce, or migrate to Supabase Auth.
-- [ ] **Key management.** Move `CREDENTIALS_ENCRYPTION_KEY` to Supabase Vault /
-  a KMS; enable rotation. (Encryption itself is correct.)
+- [x] **Key management — rotation.** _(v0.26.0)_ Versioned keyring in `crypto.ts`
+  (active key encrypts, any ring key decrypts) + `POST /api/admin/rekey` to
+  re-encrypt stored secrets under the active key. **Follow-up:** move the keys
+  themselves out of plain env into Supabase Vault / a cloud KMS.
 - [x] **Confirm destructive Bulk ops.** _(v0.23.0)_ `delete`/`hardDelete`
   imports open a typed-confirmation modal (object name + row count; hard-delete
   permanence warning) before running. **Follow-up:** optional server-side guard

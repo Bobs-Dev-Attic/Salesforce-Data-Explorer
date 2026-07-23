@@ -53,13 +53,30 @@ Browser ──APP_PASSWORD──▶ HMAC-signed httpOnly cookie ──▶ Next r
 - Nonce-based CSP + security headers (`src/middleware.ts`, `next.config.js`).
 - CSV formula-injection hardening (`export/route.ts#csvCell`).
 
+## Key rotation (v0.26.0+)
+
+Secrets are encrypted with a **keyring**: the active key encrypts new data; any
+key in the ring can decrypt. Ciphertext is `keyId:iv:authTag:ciphertext` (legacy
+3-segment values decrypt as key `v1`). To rotate:
+
+1. Generate a new 32-byte key:
+   `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+2. Add it to the ring and make it active (Vercel env), then redeploy:
+   - `CREDENTIALS_ENCRYPTION_KEYS=v2:<base64>` (keep the old key in the ring)
+   - `CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID=v2`
+3. **Re-encrypt** existing rows: App menu → **Re-encrypt secrets**
+   (`POST /api/admin/rekey`, app-auth gated, idempotent).
+4. Once every row is migrated, retire the old key by removing it from the ring.
+
+Rotate after any suspected exposure of a key, or on a periodic schedule.
+
 ## Known gaps (see TODO.md for the fix list)
 
 - **P1 (follow-up)** Login limiter is in-memory/per-instance — move to Redis/WAF
   for a durable cross-instance limit; add an `APP_PASSWORD` strength check.
 - **P2** Sessions can't be revoked (cookie is `HMAC(expiryMs)`, no server store).
-- **P2** One symmetric key decrypts all secrets, stored as a plain env var.
-- **P2** Destructive Bulk `delete`/`hardDelete` has no typed confirmation.
+- **P2 (follow-up)** Keys still live in plain Vercel env — move them into Supabase
+  Vault / a cloud KMS. (Rotation is now supported; see above.)
 
 ## Data handling
 
@@ -76,6 +93,7 @@ Browser ──APP_PASSWORD──▶ HMAC-signed httpOnly cookie ──▶ Next r
 Required env vars (never commit these): `APP_PASSWORD`, `APP_SESSION_SECRET`,
 `CREDENTIALS_ENCRYPTION_KEY` (32 bytes base64), `SUPABASE_SERVICE_ROLE_KEY`,
 `NEXT_PUBLIC_SUPABASE_URL`, `APP_BASE_URL`. Salesforce Connected App creds are
-stored in-app (encrypted in Supabase), not in env. Rotating `APP_SESSION_SECRET`
-invalidates all existing sessions; rotating `CREDENTIALS_ENCRYPTION_KEY` requires
-re-encrypting stored secrets.
+stored in-app (encrypted in Supabase), not in env. Optional key-rotation vars:
+`CREDENTIALS_ENCRYPTION_KEYS`, `CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID` (see
+**Key rotation** above). Rotating `APP_SESSION_SECRET` invalidates all existing
+sessions; the encryption key is rotated via the keyring + re-encrypt flow.

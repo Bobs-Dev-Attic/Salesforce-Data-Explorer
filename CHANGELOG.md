@@ -3,6 +3,23 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-07-23
+
+### Added
+
+- **Encryption key rotation (P2)** — `crypto.ts` now uses a versioned **keyring**
+  instead of a single key. Each key has a short id; new data is encrypted with
+  the *active* key while any key in the ring can decrypt, enabling zero-downtime
+  rotation. Ciphertext is now `keyId:iv:authTag:ciphertext`; legacy 3-segment
+  payloads still decrypt (treated as key `v1`), so existing data is unaffected.
+  - New optional env vars: `CREDENTIALS_ENCRYPTION_KEYS` (`id:base64,…`) and
+    `CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID`. `CREDENTIALS_ENCRYPTION_KEY` is
+    unchanged (the primary key, id `v1`).
+  - **Re-encrypt migration** — `src/lib/keyRotation.ts` + `POST /api/admin/rekey`
+    (app-auth gated, idempotent) rewrite all stored secrets under the active key.
+    Triggerable in-app from **App menu → “Re-encrypt secrets”**.
+  - 13 new crypto/rotation unit tests (40 total).
+
 ## [0.25.0] - 2026-07-23
 
 ### Added

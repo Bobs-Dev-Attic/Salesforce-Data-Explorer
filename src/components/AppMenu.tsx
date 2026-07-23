@@ -9,6 +9,7 @@ type Theme = "dark" | "light";
 export default function AppMenu() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
+  const [rekeying, setRekeying] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,6 +43,34 @@ export default function AppMenu() {
       localStorage.setItem("sfde.theme", t);
     } catch {
       /* ignore */
+    }
+  }
+
+  async function rekey() {
+    if (
+      !confirm(
+        "Re-encrypt all stored secrets under the active encryption key? Run this after rotating CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID. Safe to run anytime."
+      )
+    )
+      return;
+    setRekeying(true);
+    try {
+      const res = await fetch("/api/admin/rekey", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Re-key failed");
+        return;
+      }
+      alert(
+        `Re-encrypted under key "${data.activeKeyId}".\n` +
+          `Connected apps: ${data.apps.rekeyed}/${data.apps.total} rewritten.\n` +
+          `Connections: ${data.connections.rekeyed}/${data.connections.total} rewritten.`
+      );
+      setOpen(false);
+    } catch {
+      alert("Re-key failed (network error)");
+    } finally {
+      setRekeying(false);
     }
   }
 
@@ -82,6 +111,14 @@ export default function AppMenu() {
           >
             Connections
           </Link>
+          <button
+            type="button"
+            className="appmenu-item as-btn"
+            onClick={rekey}
+            disabled={rekeying}
+          >
+            {rekeying ? "Re-encrypting…" : "Re-encrypt secrets"}
+          </button>
           <form action="/api/app-auth/logout" method="post">
             <button type="submit" className="appmenu-item as-btn">
               Lock

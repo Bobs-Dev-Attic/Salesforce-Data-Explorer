@@ -27,16 +27,25 @@ describe("crypto encrypt/decrypt", () => {
     expect(encrypt("same")).not.toBe(encrypt("same"));
   });
 
-  it("uses the iv:authTag:ciphertext format", async () => {
+  it("uses the keyId:iv:authTag:ciphertext format", async () => {
     const { encrypt } = await import("./crypto");
-    expect(encrypt("x").split(":")).toHaveLength(3);
+    const parts = encrypt("x").split(":");
+    expect(parts).toHaveLength(4);
+    expect(parts[0]).toBe("v1"); // default active key id
+  });
+
+  it("still decrypts legacy 3-segment payloads (pre-rotation format)", async () => {
+    const { encrypt, decrypt } = await import("./crypto");
+    // A v1 payload with the key id stripped is the old on-disk format.
+    const [, iv, tag, data] = encrypt("legacy-secret").split(":");
+    expect(decrypt(`${iv}:${tag}:${data}`)).toBe("legacy-secret");
   });
 
   it("rejects a tampered auth tag", async () => {
     const { encrypt, decrypt } = await import("./crypto");
-    const [iv, , data] = encrypt("secret").split(":");
+    const [id, iv, , data] = encrypt("secret").split(":");
     const forgedTag = Buffer.alloc(16).toString("base64");
-    expect(() => decrypt(`${iv}:${forgedTag}:${data}`)).toThrow();
+    expect(() => decrypt(`${id}:${iv}:${forgedTag}:${data}`)).toThrow();
   });
 
   it("rejects a malformed payload", async () => {

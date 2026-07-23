@@ -1,28 +1,112 @@
 import crypto from "crypto";
 
 /**
- * AES-256-GCM encryption for secrets at rest (Salesforce refresh tokens).
- * The key comes from CREDENTIALS_ENCRYPTION_KEY: 32 bytes, base64-encoded.
+ * AES-256-GCM encryption for secrets at rest (Salesforce refresh tokens and
+ * Connected App client secrets).
  *
- * Output format: "<iv>:<authTag>:<ciphertext>", each part base64.
+ * Keyring / rotation
+ * ------------------
+ * To support key rotation without downtime, encryption uses a *keyring* of one
+ * or more 32-byte keys, each identified by a short id. New data is encrypted
+ * with the "active" key; any key in the ring can decrypt. To rotate: add a new
+ * key, point the active id at it (new writes use it), then re-encrypt existing
+ * rows (see `keyRotation.ts` / `POST /api/admin/rekey`), and finally retire the
+ * old key.
+ *
+ * Env vars:
+ *   CREDENTIALS_ENCRYPTION_KEY            legacy/primary key (id "v1"). base64 of 32 bytes.
+ *   CREDENTIALS_ENCRYPTION_KEYS           optional extra keys: "id:base64,id:base64".
+ *   CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID  id to encrypt new data with (default "v1").
+ *
+ * Ciphertext format:
+ *   "<keyId>:<iv>:<authTag>:<ciphertext>"  (4 base64/text segments)
+ * Legacy payloads written before rotation support have 3 segments
+ *   "<iv>:<authTag>:<ciphertext>" and are decrypted with the "v1" key.
  */
 
-function getKey(): Buffer {
-  const raw = process.env.CREDENTIALS_ENCRYPTION_KEY;
-  if (!raw) {
-    throw new Error("CREDENTIALS_ENCRYPTION_KEY is not set");
-  }
-  const key = Buffer.from(raw, "base64");
+const LEGACY_KEY_ID = "v1";
+const KEY_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+interface Keyring {
+  keys: Map<string, Buffer>;
+  activeId: string;
+}
+
+function decodeKey(raw: string, label: string): Buffer {
+  const key = Buffer.from(raw.trim(), "base64");
   if (key.length !== 32) {
     throw new Error(
-      "CREDENTIALS_ENCRYPTION_KEY must decode to 32 bytes (base64 of 32 random bytes)"
+      `${label} must decode to 32 bytes (base64 of 32 random bytes)`
     );
   }
   return key;
 }
 
+// Env is static at runtime, but we parse per call (cheap; keeps tests simple and
+// avoids stale caches). Encryption isn't a hot path — access tokens are cached.
+function loadKeyring(): Keyring {
+  const keys = new Map<string, Buffer>();
+
+  const legacy = process.env.CREDENTIALS_ENCRYPTION_KEY;
+  if (legacy && legacy.trim()) {
+    keys.set(LEGACY_KEY_ID, decodeKey(legacy, "CREDENTIALS_ENCRYPTION_KEY"));
+  }
+
+  const extra = process.env.CREDENTIALS_ENCRYPTION_KEYS;
+  if (extra && extra.trim()) {
+    for (const entry of extra.split(",")) {
+      const trimmed = entry.trim();
+      if (!trimmed) continue;
+      const idx = trimmed.indexOf(":");
+      if (idx < 0) {
+        throw new Error(
+          'CREDENTIALS_ENCRYPTION_KEYS entries must be "id:base64"'
+        );
+      }
+      const id = trimmed.slice(0, idx).trim();
+      const val = trimmed.slice(idx + 1).trim();
+      if (!KEY_ID_RE.test(id)) {
+        throw new Error(
+          `Invalid encryption key id "${id}" (allowed: A-Z a-z 0-9 _ -)`
+        );
+      }
+      keys.set(id, decodeKey(val, `CREDENTIALS_ENCRYPTION_KEYS[${id}]`));
+    }
+  }
+
+  if (keys.size === 0) {
+    throw new Error(
+      "No encryption key configured (set CREDENTIALS_ENCRYPTION_KEY)"
+    );
+  }
+
+  const requested = process.env.CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID?.trim();
+  let activeId: string;
+  if (requested) {
+    if (!keys.has(requested)) {
+      throw new Error(
+        `CREDENTIALS_ENCRYPTION_ACTIVE_KEY_ID "${requested}" is not in the keyring`
+      );
+    }
+    activeId = requested;
+  } else {
+    // Default to the legacy key for backward compatibility, else the first key.
+    activeId = keys.has(LEGACY_KEY_ID)
+      ? LEGACY_KEY_ID
+      : [...keys.keys()][0];
+  }
+
+  return { keys, activeId };
+}
+
+/** The id of the key new data is currently encrypted with. */
+export function activeKeyId(): string {
+  return loadKeyring().activeId;
+}
+
 export function encrypt(plaintext: string): string {
-  const key = getKey();
+  const { keys, activeId } = loadKeyring();
+  const key = keys.get(activeId) as Buffer;
   const iv = crypto.randomBytes(12); // 96-bit nonce recommended for GCM
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([
@@ -31,19 +115,42 @@ export function encrypt(plaintext: string): string {
   ]);
   const authTag = cipher.getAuthTag();
   return [
+    activeId,
     iv.toString("base64"),
     authTag.toString("base64"),
     ciphertext.toString("base64"),
   ].join(":");
 }
 
-export function decrypt(payload: string): string {
-  const key = getKey();
+/** The key id a stored payload was encrypted under. */
+function keyIdOf(payload: string): string {
   const parts = payload.split(":");
-  if (parts.length !== 3) {
+  if (parts.length === 4) return parts[0];
+  if (parts.length === 3) return LEGACY_KEY_ID;
+  throw new Error("Malformed encrypted payload");
+}
+
+export function decrypt(payload: string): string {
+  const { keys } = loadKeyring();
+  const parts = payload.split(":");
+  let keyId: string;
+  let ivB64: string;
+  let tagB64: string;
+  let dataB64: string;
+  if (parts.length === 4) {
+    [keyId, ivB64, tagB64, dataB64] = parts;
+  } else if (parts.length === 3) {
+    keyId = LEGACY_KEY_ID;
+    [ivB64, tagB64, dataB64] = parts;
+  } else {
     throw new Error("Malformed encrypted payload");
   }
-  const [ivB64, tagB64, dataB64] = parts;
+  const key = keys.get(keyId);
+  if (!key) {
+    throw new Error(
+      `No encryption key "${keyId}" is available to decrypt this value (check the keyring / rotation config)`
+    );
+  }
   const iv = Buffer.from(ivB64, "base64");
   const authTag = Buffer.from(tagB64, "base64");
   const data = Buffer.from(dataB64, "base64");
@@ -51,4 +158,14 @@ export function decrypt(payload: string): string {
   decipher.setAuthTag(authTag);
   const plaintext = Buffer.concat([decipher.update(data), decipher.final()]);
   return plaintext.toString("utf8");
+}
+
+/** Decrypt with whichever key wrote a payload, then re-encrypt with the active key. */
+export function reencrypt(payload: string): string {
+  return encrypt(decrypt(payload));
+}
+
+/** True when a payload is already encrypted under the active key (no rewrite needed). */
+export function isUnderActiveKey(payload: string): boolean {
+  return keyIdOf(payload) === loadKeyring().activeId;
 }
