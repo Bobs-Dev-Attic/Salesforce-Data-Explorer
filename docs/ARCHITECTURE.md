@@ -25,7 +25,7 @@ Browser ──(APP_PASSWORD)──▶ signed httpOnly cookie ──▶ Next rout
    route handlers ──(per-connection access token)──▶ Salesforce REST/Bulk
 ```
 
-- App auth: `src/lib/session.ts` — HMAC-signed cookie `sfde_session = "<expiryMs>.<hmac>"`, 7-day expiry, `httpOnly`+`secure`(prod)+`SameSite=lax`. Verified by `isAuthenticated()` in every page/route.
+- App auth: `src/lib/session.ts` — HMAC-signed cookie `sfde_session = "<expiryMs>.<epoch>.<hmac>"`, 7-day expiry, `httpOnly`+`secure`(prod)+`SameSite=lax`. Verified by the **async** `isAuthenticated()` in every page/route, which also checks the cookie's epoch against the current server-side `session_epoch` (revocation). Bumping the epoch ("Sign out all sessions") invalidates every cookie.
 - Salesforce auth: OAuth 2.0 Web Server flow **or** Client Credentials flow. Refresh tokens and Connected App client secrets are **AES-256-GCM encrypted at rest** (`src/lib/crypto.ts`) before hitting Supabase.
 
 ## Directory map
@@ -34,7 +34,8 @@ Browser ──(APP_PASSWORD)──▶ signed httpOnly cookie ──▶ Next rout
 src/lib/
   crypto.ts            AES-256-GCM encrypt/decrypt with a versioned keyring (rotation)
   keyRotation.ts       re-encrypt all stored secrets under the active key
-  session.ts           app-auth cookie sign/verify, checkPassword
+  session.ts           app-auth cookie sign/verify (+ session epoch), checkPassword — async
+  appSettings.ts       server key/value settings; session epoch read/bump (cached)
   supabase.ts          server-only service-role client (singleton)
   salesforce.ts        OAuth apps CRUD, connections CRUD, token mint, sfFetch,
                        runSoql, describeGlobal/SObject (+ 24h Supabase cache),
@@ -52,7 +53,7 @@ Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv).
 CI: .github/workflows/ci.yml runs typecheck → lint → test → build on PRs.
 
 src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated())
-  app-auth/{login,logout}
+  app-auth/{login,logout,revoke-all}     unlock / lock / sign out all sessions (bump epoch)
   auth/salesforce/{login,callback}      OAuth authorize + code exchange
   salesforce/apps[/id]                   Connected App CRUD
   salesforce/connections[/id]            connection list / activate / rename / delete
@@ -80,6 +81,7 @@ src/components/        DataExplorer, QueryRunner (SOQL editor), ObjectExplorer (
 - `salesforce_connections` — org connections (`refresh_token_encrypted`, `is_active`, `oauth_app_id`). Client-credentials connections store a sentinel refresh token.
 - `sf_metadata_cache` — describe/global/recordCount payloads (jsonb), keyed `(connection_id, cache_key)`, 24h TTL enforced in app code.
 - `saved_queries` — Data Explorer/SOQL saved state.
+- `app_settings` — key/value server settings; holds `session_epoch` for session revocation.
 
 All tables: `alter table ... enable row level security;` with **no policies** (server uses service-role key which bypasses RLS).
 

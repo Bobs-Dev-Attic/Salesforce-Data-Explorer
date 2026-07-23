@@ -4,12 +4,12 @@ import ConnectionsManager from "@/components/ConnectionsManager";
 
 export const dynamic = "force-dynamic";
 
-export default function ConnectionsPage({
+export default async function ConnectionsPage({
   searchParams,
 }: {
   searchParams: { connected?: string; error?: string };
 }) {
-  if (!isAuthenticated()) redirect("/login");
+  if (!(await isAuthenticated())) redirect("/login");
   return (
     <ConnectionsManager
       connected={Boolean(searchParams.connected)}

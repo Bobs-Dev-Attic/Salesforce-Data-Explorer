@@ -43,9 +43,10 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
 
 ## P2 — Medium priority
 
-- [ ] **Session revocation / identity.** Cookie is `HMAC(expiryMs)` only — no
-  revoke, no "log out everywhere." Add a server-side session store or a
-  rotating nonce, or migrate to Supabase Auth.
+- [x] **Session revocation.** _(v0.28.0)_ Server-side session epoch
+  (`app_settings`) embedded in the cookie; "Sign out all sessions" bumps it and
+  invalidates every session in-app. **Follow-up:** per-session revocation
+  (individual device management) and per-user identity would need Supabase Auth.
 - [x] **Key management — rotation.** _(v0.26.0)_ Versioned keyring in `crypto.ts`
   (active key encrypts, any ring key decrypts) + `POST /api/admin/rekey` to
   re-encrypt stored secrets under the active key. **Follow-up:** move the keys

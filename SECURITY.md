@@ -28,7 +28,7 @@ Browser ──APP_PASSWORD──▶ HMAC-signed httpOnly cookie ──▶ Next r
 
 | Asset | Protection |
 | --- | --- |
-| App access | `APP_PASSWORD` → HMAC-signed cookie (`APP_SESSION_SECRET`), 7-day expiry, `httpOnly` + `secure` (prod) + `SameSite=lax` |
+| App access | `APP_PASSWORD` → HMAC-signed cookie (`APP_SESSION_SECRET`), 7-day expiry, `httpOnly` + `secure` (prod) + `SameSite=lax`, revocable via session epoch |
 | Salesforce refresh tokens | AES-256-GCM at rest (`CREDENTIALS_ENCRYPTION_KEY`), random 96-bit IV per op |
 | Connected App client secrets | AES-256-GCM at rest, same key |
 | Supabase tables | RLS enabled, **no policies** → anon/publishable key sees nothing; server uses service-role key only |
@@ -74,7 +74,9 @@ Rotate after any suspected exposure of a key, or on a periodic schedule.
 
 - **P1 (follow-up)** Login limiter is in-memory/per-instance — move to Redis/WAF
   for a durable cross-instance limit; add an `APP_PASSWORD` strength check.
-- **P2** Sessions can't be revoked (cookie is `HMAC(expiryMs)`, no server store).
+- **P2 (follow-up)** Session revocation is **global** ("sign out all"), not
+  per-session; and revocation propagates to other warm instances within the
+  30 s epoch-cache TTL. Per-device/per-user session management needs Supabase Auth.
 - **P2 (follow-up)** Keys still live in plain Vercel env — move them into Supabase
   Vault / a cloud KMS. (Rotation is now supported; see above.)
 

@@ -108,7 +108,7 @@ function streamExport(
 }
 
 export async function POST(req: Request) {
-  if (!isAuthenticated()) return jsonError("Unauthorized", 401);
+  if (!(await isAuthenticated())) return jsonError("Unauthorized", 401);
 
   const body = await req.json().catch(() => ({}));
   const soql = String(body.soql || "").trim();

@@ -8,7 +8,7 @@ export async function GET(
   req: Request,
   { params }: { params: { name: string } }
 ) {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const conn = await getActiveConnection();

@@ -7,7 +7,7 @@ import RelationshipMap from "@/components/RelationshipMap";
 export const dynamic = "force-dynamic";
 
 export default async function SchemaPage() {
-  if (!isAuthenticated()) redirect("/login");
+  if (!(await isAuthenticated())) redirect("/login");
   const conn = await getActiveConnection();
   if (!conn) {
     return (

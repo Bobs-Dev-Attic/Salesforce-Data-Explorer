@@ -10,6 +10,7 @@ export default function AppMenu() {
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
   const [rekeying, setRekeying] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -74,6 +75,29 @@ export default function AppMenu() {
     }
   }
 
+  async function signOutAll() {
+    if (
+      !confirm(
+        "Sign out ALL sessions on every device? This immediately invalidates every active session (including this one) and you'll need to unlock again."
+      )
+    )
+      return;
+    setRevoking(true);
+    try {
+      const res = await fetch("/api/app-auth/revoke-all", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to sign out sessions");
+        return;
+      }
+      window.location.href = "/login";
+    } catch {
+      alert("Failed to sign out sessions (network error)");
+    } finally {
+      setRevoking(false);
+    }
+  }
+
   return (
     <div className="appmenu" ref={ref}>
       <button
@@ -118,6 +142,14 @@ export default function AppMenu() {
             disabled={rekeying}
           >
             {rekeying ? "Re-encrypting…" : "Re-encrypt secrets"}
+          </button>
+          <button
+            type="button"
+            className="appmenu-item as-btn"
+            onClick={signOutAll}
+            disabled={revoking}
+          >
+            {revoking ? "Signing out…" : "Sign out all sessions"}
           </button>
           <form action="/api/app-auth/logout" method="post">
             <button type="submit" className="appmenu-item as-btn">

@@ -1,14 +1,18 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
+import { getSessionEpoch } from "./appSettings";
 
 /**
  * Lightweight single-user app auth. The user unlocks the app by entering
  * APP_PASSWORD. On success we set a signed, httpOnly cookie. Every server
  * route/page checks it with isAuthenticated().
  *
- * The cookie value is "<expiryMs>.<hmac>" where hmac = HMAC-SHA256 over the
- * expiry using APP_SESSION_SECRET. It is not a bearer of any data other than
- * "this browser proved knowledge of APP_PASSWORD before <expiry>".
+ * The cookie value is "<expiryMs>.<epoch>.<hmac>" where hmac = HMAC-SHA256 over
+ * "<expiryMs>.<epoch>" using APP_SESSION_SECRET. The epoch is a server-side
+ * counter (see appSettings): a cookie is only valid while its epoch matches the
+ * current one, so bumping the epoch revokes every outstanding session
+ * ("sign out everywhere"). The cookie carries no data beyond "this browser
+ * proved knowledge of APP_PASSWORD before <expiry>, under epoch <epoch>".
  */
 
 const COOKIE_NAME = "sfde_session";
@@ -20,26 +24,34 @@ function getSecret(): string {
   return secret;
 }
 
-function sign(expiryMs: number): string {
+function sign(expiryMs: number, epoch: number): string {
+  const payload = `${expiryMs}.${epoch}`;
   const hmac = crypto
     .createHmac("sha256", getSecret())
-    .update(String(expiryMs))
+    .update(payload)
     .digest("base64url");
-  return `${expiryMs}.${hmac}`;
+  return `${payload}.${hmac}`;
 }
 
-function verify(token: string | undefined): boolean {
-  if (!token) return false;
-  const dot = token.indexOf(".");
-  if (dot < 0) return false;
-  const expiryStr = token.slice(0, dot);
+/**
+ * Verify a token's signature and expiry (no DB). Returns the embedded epoch on
+ * success so the caller can check it against the current epoch, or null if the
+ * token is malformed / expired / tampered.
+ */
+function verifySignature(token: string | undefined): { epoch: number } | null {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [expiryStr, epochStr] = parts;
   const expiryMs = Number(expiryStr);
-  if (!Number.isFinite(expiryMs) || expiryMs < Date.now()) return false;
-  const expected = sign(expiryMs);
-  // constant-time compare
+  const epoch = Number(epochStr);
+  if (!Number.isFinite(expiryMs) || expiryMs < Date.now()) return null;
+  if (!Number.isFinite(epoch)) return null;
+  const expected = sign(expiryMs, epoch);
   const a = Buffer.from(token);
   const b = Buffer.from(expected);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  return { epoch };
 }
 
 /** Validate the submitted password against APP_PASSWORD (constant time).
@@ -59,11 +71,12 @@ export function isPasswordConfigured(): boolean {
   return Boolean((process.env.APP_PASSWORD || "").trim());
 }
 
-export function createSessionCookie() {
+export async function createSessionCookie() {
   const expiryMs = Date.now() + MAX_AGE_SECONDS * 1000;
+  const epoch = await getSessionEpoch();
   return {
     name: COOKIE_NAME,
-    value: sign(expiryMs),
+    value: sign(expiryMs, epoch),
     options: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -88,8 +101,12 @@ export function clearSessionCookie() {
   };
 }
 
-/** Read the cookie in a Server Component / Route Handler and verify it. */
-export function isAuthenticated(): boolean {
+/** Read the cookie in a Server Component / Route Handler and verify it: valid
+ * signature, unexpired, and minted under the current session epoch. */
+export async function isAuthenticated(): Promise<boolean> {
   const token = cookies().get(COOKIE_NAME)?.value;
-  return verify(token);
+  const verified = verifySignature(token);
+  if (!verified) return false;
+  const currentEpoch = await getSessionEpoch();
+  return verified.epoch === currentEpoch;
 }

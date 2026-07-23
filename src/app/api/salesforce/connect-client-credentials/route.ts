@@ -10,7 +10,7 @@ export const runtime = "nodejs";
  * with a run-as user. No browser redirect / callback URL is involved.
  */
 export async function POST(req: Request) {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await req.json().catch(() => ({}));

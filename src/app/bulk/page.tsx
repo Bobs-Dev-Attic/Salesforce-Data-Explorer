@@ -7,7 +7,7 @@ import BulkTools from "@/components/BulkTools";
 export const dynamic = "force-dynamic";
 
 export default async function BulkPage() {
-  if (!isAuthenticated()) redirect("/login");
+  if (!(await isAuthenticated())) redirect("/login");
   const conn = await getActiveConnection();
   if (!conn) {
     return (

@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   }
 
   recordSuccess(ip);
-  const cookie = createSessionCookie();
+  const cookie = await createSessionCookie();
   const res = NextResponse.json({ ok: true });
   res.cookies.set(cookie.name, cookie.value, cookie.options);
   return res;

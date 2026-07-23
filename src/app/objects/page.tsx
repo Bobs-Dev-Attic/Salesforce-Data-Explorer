@@ -7,7 +7,7 @@ import ObjectExplorer from "@/components/ObjectExplorer";
 export const dynamic = "force-dynamic";
 
 export default async function ObjectsPage() {
-  if (!isAuthenticated()) redirect("/login");
+  if (!(await isAuthenticated())) redirect("/login");
   const conn = await getActiveConnection();
   if (!conn) {
     return (

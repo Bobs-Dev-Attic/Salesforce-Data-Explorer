@@ -5,7 +5,7 @@ import { isAuthenticated } from "@/lib/session";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const conn = await getActiveConnection();
