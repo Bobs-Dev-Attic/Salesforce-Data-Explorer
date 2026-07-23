@@ -28,6 +28,67 @@ export function csvRow(row: Record<string, string>, columns: string[]): string {
   return columns.map((c) => csvCell(row[c] ?? "")).join(",");
 }
 
+/**
+ * Parse a CSV document into a header row + data rows (RFC-4180-ish): handles
+ * quoted fields, escaped quotes (`""`), and commas / newlines inside quotes.
+ * Blank trailing lines are ignored. Returns `{ headers, rows }` where each row
+ * is an array of cell strings aligned to the header order.
+ */
+export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const records: string[][] = [];
+  let field = "";
+  let record: string[] = [];
+  let inQuotes = false;
+  let started = false; // whether the current record has any content
+
+  const pushField = () => {
+    record.push(field);
+    field = "";
+  };
+  const pushRecord = () => {
+    pushField();
+    records.push(record);
+    record = [];
+    started = false;
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inQuotes = true;
+      started = true;
+    } else if (c === ",") {
+      pushField();
+      started = true;
+    } else if (c === "\r") {
+      // handled by the \n branch; ignore lone CR
+    } else if (c === "\n") {
+      if (started || field.length > 0 || record.length > 0) pushRecord();
+    } else {
+      field += c;
+      started = true;
+    }
+  }
+  // Flush a trailing record with no final newline.
+  if (started || field.length > 0 || record.length > 0) pushRecord();
+
+  const headers = records.length ? records[0] : [];
+  return { headers, rows: records.slice(1) };
+}
+
 /** Build a CRLF-delimited CSV document from flattened rows and a column order. */
 export function toCsv(
   rows: Record<string, string>[],
