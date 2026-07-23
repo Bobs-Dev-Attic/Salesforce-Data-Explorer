@@ -169,11 +169,22 @@ export default function RelationshipMap() {
     y: number;
     side: "left" | "right";
   }) {
+    const label = `${node.object}${
+      node.edges.length ? ` via ${node.edges.join(", ")}` : ""
+    }. Re-center map on this object.`;
     return (
       <g
+        className="schema-node-group"
+        role="button"
+        tabIndex={0}
+        aria-label={label}
         style={{ cursor: "pointer" }}
-        onClick={() => {
-          setCenter(node.object);
+        onClick={() => setCenter(node.object)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setCenter(node.object);
+          }
         }}
       >
         <title>
@@ -235,6 +246,8 @@ export default function RelationshipMap() {
               viewBox={`0 0 ${WIDTH} ${height}`}
               width="100%"
               style={{ minWidth: 640, display: "block" }}
+              role="group"
+              aria-label={`Relationship map for ${describe.name}: ${parents.length} parent object(s) on the left, ${children.length} child object(s) on the right. Related objects are focusable buttons; activate one to re-center the map.`}
             >
               {/* edges: parents -> center */}
               {parents.map((p, i) => {
@@ -308,15 +321,14 @@ export default function RelationshipMap() {
             <p className="muted" style={{ marginTop: 8 }}>
               Showing {children.length} of {allChildren.length} child
               relationships.{" "}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setShowAllChildren((s) => !s);
-                }}
+              <button
+                type="button"
+                className="linkbtn"
+                style={{ color: "var(--accent)" }}
+                onClick={() => setShowAllChildren((s) => !s)}
               >
                 {showAllChildren ? "Show fewer" : "Show all"}
-              </a>
+              </button>
             </p>
           )}
 

@@ -575,11 +575,21 @@ export default function ObjectExplorer() {
                     {fieldRows.map((r) => (
                       <tr
                         key={r.name}
+                        tabIndex={0}
+                        aria-label={`${r.label} (${r.name}). Show full field metadata.`}
                         onClick={() =>
                           setFieldModal(
                             r.f as unknown as Record<string, unknown>
                           )
                         }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setFieldModal(
+                              r.f as unknown as Record<string, unknown>
+                            );
+                          }
+                        }}
                         style={{ cursor: "pointer" }}
                         title="Click for full field metadata"
                       >
