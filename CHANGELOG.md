@@ -3,6 +3,21 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.16.1] - 2026-07-23
+
+### Added
+
+- **Object directory button** — a 🗂️ icon beside the object fields (Data Explorer
+  and Schema) opens a searchable dialog listing all objects (Recent, Standard,
+  Custom) to pick from.
+- The object autocomplete now surfaces **recently selected objects first**.
+
+### Fixed
+
+- The object field could not be fully cleared (deleting the last character
+  snapped back to the selected name). Replaced with a single controlled combobox
+  (`ObjectPicker`) so typing/clearing behaves normally.
+
 ## [0.16.0] - 2026-07-23
 
 ### Added

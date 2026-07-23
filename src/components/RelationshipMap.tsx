@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
+import ObjectPicker from "@/components/ObjectPicker";
 
 interface GlobalObject {
   name: string;
@@ -81,7 +82,6 @@ const WIDTH = 900;
 export default function RelationshipMap() {
   const [objects, setObjects] = useState<GlobalObject[]>([]);
   const [center, setCenter] = usePersistentState<string>("sfde.schema.center", "");
-  const [pick, setPick] = useState("");
   const [describe, setDescribe] = useState<Describe | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,15 +158,6 @@ export default function RelationshipMap() {
     return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
   }
 
-  const filteredObjects = useMemo(() => {
-    const f = pick.trim().toLowerCase();
-    if (!f) return objects;
-    return objects.filter(
-      (o) =>
-        o.name.toLowerCase().includes(f) || o.label.toLowerCase().includes(f)
-    );
-  }, [objects, pick]);
-
   function RelNodeRect({
     node,
     x,
@@ -183,7 +174,6 @@ export default function RelationshipMap() {
         style={{ cursor: "pointer" }}
         onClick={() => {
           setCenter(node.object);
-          setPick("");
         }}
       >
         <title>
@@ -216,29 +206,12 @@ export default function RelationshipMap() {
 
       <div className="card">
         <label htmlFor="schema-obj">Object</label>
-        <input
+        <ObjectPicker
           id="schema-obj"
-          list="schema-obj-list"
-          placeholder="Type to search…"
-          value={pick || center}
-          onChange={(e) => setPick(e.target.value)}
-          onBlur={(e) => {
-            const m = objects.find(
-              (o) => o.name.toLowerCase() === e.target.value.trim().toLowerCase()
-            );
-            if (m) {
-              setCenter(m.name);
-              setPick("");
-            }
-          }}
+          objects={objects}
+          value={center}
+          onSelect={setCenter}
         />
-        <datalist id="schema-obj-list">
-          {filteredObjects.slice(0, 200).map((o) => (
-            <option key={o.name} value={o.name}>
-              {o.label}
-            </option>
-          ))}
-        </datalist>
       </div>
 
       {loading && <div className="card spinner">Loading relationships…</div>}

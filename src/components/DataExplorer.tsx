@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readPersisted, writePersisted } from "@/lib/usePersistentState";
 import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
+import ObjectPicker from "@/components/ObjectPicker";
 
 const EXPLORER_KEY = "sfde.explorer.state";
 
@@ -129,7 +130,6 @@ export default function DataExplorer() {
   const [objects, setObjects] = useState<GlobalObject[]>([]);
   const [objectsLoading, setObjectsLoading] = useState(true);
   const [selectedObject, setSelectedObject] = useState("");
-  const [objectFilter, setObjectFilter] = useState("");
 
   const [fields, setFields] = useState<SObjectField[]>([]);
   const [childRels, setChildRels] = useState<ChildRelationship[]>([]);
@@ -530,15 +530,6 @@ export default function DataExplorer() {
     relatedCache,
   ]);
 
-  const filteredObjects = useMemo(() => {
-    const f = objectFilter.trim().toLowerCase();
-    if (!f) return objects;
-    return objects.filter(
-      (o) =>
-        o.name.toLowerCase().includes(f) || o.label.toLowerCase().includes(f)
-    );
-  }, [objects, objectFilter]);
-
   const filteredFields = useMemo(() => {
     const f = fieldFilter.trim().toLowerCase();
     if (!f) return fields;
@@ -765,7 +756,6 @@ export default function DataExplorer() {
         setChildSelections(s.childSelections || {});
         restoreRef.current = null;
       } else {
-        setObjectFilter("");
         setSelectedObject(q.builder_state.selectedObject);
       }
     }
@@ -888,29 +878,15 @@ export default function DataExplorer() {
       {/* Object picker */}
       <div className="card">
         <label htmlFor="obj">Object</label>
-        <input
+        <ObjectPicker
           id="obj"
-          list="obj-list"
-          placeholder={objectsLoading ? "Loading objects…" : "Type to search…"}
-          value={objectFilter || selectedObject}
-          onChange={(e) => setObjectFilter(e.target.value)}
-          onBlur={(e) => {
-            const match = objects.find(
-              (o) => o.name.toLowerCase() === e.target.value.trim().toLowerCase()
-            );
-            if (match) {
-              setSelectedObject(match.name);
-              setObjectFilter("");
-            }
-          }}
+          objects={objects}
+          value={selectedObject}
+          onSelect={setSelectedObject}
+          placeholder={
+            objectsLoading ? "Loading objects…" : "Type to search…"
+          }
         />
-        <datalist id="obj-list">
-          {filteredObjects.slice(0, 200).map((o) => (
-            <option key={o.name} value={o.name}>
-              {o.label}
-            </option>
-          ))}
-        </datalist>
         {selectedObject && (
           <p className="muted" style={{ marginTop: 8 }}>
             Selected: <code>{selectedObject}</code>
