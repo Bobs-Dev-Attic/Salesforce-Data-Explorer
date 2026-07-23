@@ -26,10 +26,12 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
 - [x] **CSV / formula injection in exports.** _(v0.20.0)_
   `export/route.ts#csvCell` prefixes cells starting with `= + - @` (or tab/CR)
   with `'`. XLSX path already safe (`inlineStr`).
-- [ ] **Cache the Salesforce access token.** `getAccessToken` currently mints a
-  fresh token on every `sfFetch`. Cache per connection until near expiry
-  (in-memory LRU, or encrypted `access_token`+`expires_at` in Supabase).
-  Cuts latency and OAuth rate-limit risk.
+- [x] **Cache the Salesforce access token.** _(v0.21.0)_ In-memory per-connection
+  cache in `salesforce.ts` honoring `expires_in` (else `SF_TOKEN_TTL_SECONDS`,
+  default 15 min, −60 s skew); `sfFetch` + `bulkFetch` re-mint once on `401`;
+  `disconnect` clears it. **Follow-up:** cache is per warm instance — a shared
+  store (Redis / encrypted `access_token`+`expires_at` in Supabase) would make
+  it durable across instances/cold starts.
 - [ ] **Add tests + CI.** Vitest units for `crypto` round-trip, `session`
   sign/verify + `checkPassword`, SOQL value quoting, `xlsx` validity. GitHub
   Action gating PRs on `build` + `lint` + `typecheck` + tests.
