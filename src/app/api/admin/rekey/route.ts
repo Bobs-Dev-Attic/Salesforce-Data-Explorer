@@ -10,7 +10,7 @@ export const runtime = "nodejs";
  * active key are skipped.
  */
 export async function POST() {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {

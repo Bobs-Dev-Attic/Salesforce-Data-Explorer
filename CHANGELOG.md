@@ -3,6 +3,24 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-07-23
+
+### Security
+
+- **Session revocation (P2)** — sessions are now revocable. A server-side
+  **session epoch** (Supabase `app_settings`, migration `0004`) is embedded in
+  the signed cookie (`expiryMs.epoch.hmac`); `isAuthenticated()` rejects any
+  cookie whose epoch ≠ the current one. A new **App menu → "Sign out all
+  sessions"** (`POST /api/app-auth/revoke-all`) bumps the epoch, immediately
+  invalidating every outstanding session (including the current one) without a
+  redeploy or secret rotation.
+  - The epoch is cached in-memory (30 s TTL) to avoid a DB read per auth check;
+    revocation propagates to other warm instances within that window.
+  - `isAuthenticated()` / `createSessionCookie()` are now async (all ~30 call
+    sites updated). **Note:** the cookie format changed, so existing sessions
+    are invalidated once on deploy and must unlock again.
+  - 6 new session-revocation unit tests (46 total).
+
 ## [0.27.0] - 2026-07-23
 
 ### Accessibility (P2)

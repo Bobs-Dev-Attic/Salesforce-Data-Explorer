@@ -10,7 +10,7 @@ function appUrl(path: string): URL {
 }
 
 export async function GET(req: Request) {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return NextResponse.redirect(appUrl("/login"));
   }
   const appId = new URL(req.url).searchParams.get("appId");

@@ -19,12 +19,12 @@ export const metadata: Metadata = {
     "Connect to Salesforce, run SOQL, explore objects, export and import data.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const authed = isAuthenticated();
+  const authed = await isAuthenticated();
   const nonce = headers().get("x-nonce") ?? undefined;
   return (
     <html lang="en" data-theme="dark">

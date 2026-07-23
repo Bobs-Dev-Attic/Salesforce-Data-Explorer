@@ -21,7 +21,7 @@ function parseOrgId(identityUrl: string): string | null {
 }
 
 export async function GET(req: Request) {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     return NextResponse.redirect(appUrl("/login"));
   }
 

@@ -10,7 +10,7 @@ export default async function HomePage({
 }: {
   searchParams: { connected?: string; sf_error?: string };
 }) {
-  if (!isAuthenticated()) {
+  if (!(await isAuthenticated())) {
     redirect("/login");
   }
 
