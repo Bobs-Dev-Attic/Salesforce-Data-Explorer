@@ -32,9 +32,11 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
   `disconnect` clears it. **Follow-up:** cache is per warm instance — a shared
   store (Redis / encrypted `access_token`+`expires_at` in Supabase) would make
   it durable across instances/cold starts.
-- [ ] **Add tests + CI.** Vitest units for `crypto` round-trip, `session`
-  sign/verify + `checkPassword`, SOQL value quoting, `xlsx` validity. GitHub
-  Action gating PRs on `build` + `lint` + `typecheck` + tests.
+- [x] **Add tests + CI.** _(v0.22.0)_ Vitest (28 tests) over `crypto`,
+  `session.checkPassword`, `rateLimit`, and CSV escaping; `.github/workflows/ci.yml`
+  gates PRs + pushes on typecheck → lint → test → build. **Follow-up:** broaden
+  coverage — SOQL builder value quoting, `xlsx` validity assertion, and route-level
+  integration tests.
 - [ ] **Add a LICENSE** (or mark explicitly private). Add a short privacy note
   if it ever leaves personal use.
 

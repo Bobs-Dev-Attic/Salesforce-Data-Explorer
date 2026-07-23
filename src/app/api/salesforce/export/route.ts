@@ -1,6 +1,7 @@
 import { getActiveConnection, runSoql } from "@/lib/salesforce";
 import { isAuthenticated } from "@/lib/session";
 import { buildXlsx } from "@/lib/xlsx";
+import { toCsv } from "@/lib/csv";
 
 export const runtime = "nodejs";
 
@@ -37,25 +38,6 @@ function flatten(
     }
   }
   return out;
-}
-
-function csvCell(v: string): string {
-  let s = v;
-  // Neutralize spreadsheet formula injection: a cell beginning with = + - @
-  // (optionally preceded by a tab or carriage return) is interpreted as a live
-  // formula by Excel / Google Sheets. Prefix with a single quote so the value
-  // is rendered as literal text. The XLSX writer uses inlineStr and is unaffected.
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function toCsv(rows: Record<string, string>[], columns: string[]): string {
-  const lines = [columns.map(csvCell).join(",")];
-  for (const row of rows) {
-    lines.push(columns.map((c) => csvCell(row[c] ?? "")).join(","));
-  }
-  return lines.join("\r\n");
 }
 
 export async function POST(req: Request) {
