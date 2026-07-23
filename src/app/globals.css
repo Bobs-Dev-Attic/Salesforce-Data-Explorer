@@ -392,6 +392,50 @@ td.actions-cell {
   color: var(--danger);
 }
 
+/* Schema relationship map */
+.schema-node {
+  fill: var(--panel-2);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.schema-node:hover {
+  stroke: var(--accent);
+}
+.schema-node.left {
+  fill: rgba(43, 140, 255, 0.12);
+}
+.schema-node.right {
+  fill: rgba(0, 161, 224, 0.12);
+}
+.schema-node-text {
+  fill: var(--text);
+  font-size: 12px;
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
+.schema-center {
+  fill: var(--accent);
+  stroke: var(--accent-2);
+  stroke-width: 1.5;
+}
+.schema-center-text {
+  fill: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
+.schema-edge {
+  stroke-width: 1.4;
+  opacity: 0.7;
+}
+.schema-edge.parent {
+  stroke: var(--accent);
+}
+.schema-edge.child {
+  stroke: var(--accent-2);
+}
+
 /* Modal dialog (field metadata) */
 .modal-backdrop {
   position: fixed;

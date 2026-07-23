@@ -3,6 +3,17 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-07-23
+
+### Added
+
+- **Schema tab** — an interactive relationship map. Pick an object to place it at
+  the center; its **parent (lookup)** objects render on the left and **child**
+  objects on the right, connected by curved SVG edges (hover an edge/node for the
+  relationship fields). **Click any related object to re-center** and walk the
+  schema. Parent lookups are grouped by target object; child relationships beyond
+  22 collapse behind a "Show all". Dependency-free inline SVG.
+
 ## [0.15.0] - 2026-07-23
 
 ### Added

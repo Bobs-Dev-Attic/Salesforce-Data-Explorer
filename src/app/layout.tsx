@@ -34,6 +34,7 @@ export default function RootLayout({
               <Link href="/explorer">Explorer</Link>
               <Link href="/query">SOQL</Link>
               <Link href="/objects">Objects</Link>
+              <Link href="/schema">Schema</Link>
               <Link href="/bulk">Bulk</Link>
               <Link href="/connections">Connections</Link>
               <form action="/api/app-auth/logout" method="post" className="inline">
