@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readPersisted, writePersisted } from "@/lib/usePersistentState";
 import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 import ObjectPicker from "@/components/ObjectPicker";
+import ErrorNotice from "@/components/ErrorNotice";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 
 const EXPLORER_KEY = "sfde.explorer.state";
@@ -838,7 +839,7 @@ export default function DataExplorer() {
         filters — the SOQL is generated for you and you can run, export, or save
         it.
       </p>
-      {error && <div className="alert error">{error}</div>}
+      {error && <ErrorNotice error={error} />}
 
       {/* Saved queries */}
       <div className="card">

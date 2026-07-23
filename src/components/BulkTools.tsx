@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import ErrorNotice from "@/components/ErrorNotice";
 
 interface BulkJob {
   id: string;
@@ -140,8 +141,8 @@ function BulkExport() {
         )}
       </div>
       {error && (
-        <div className="alert error" style={{ marginTop: 12 }}>
-          {error}
+        <div style={{ marginTop: 12 }}>
+          <ErrorNotice error={error} />
         </div>
       )}
       {failed && (
@@ -342,8 +343,8 @@ function BulkImport() {
       )}
 
       {error && (
-        <div className="alert error" style={{ marginTop: 12 }}>
-          {error}
+        <div style={{ marginTop: 12 }}>
+          <ErrorNotice error={error} />
         </div>
       )}
 

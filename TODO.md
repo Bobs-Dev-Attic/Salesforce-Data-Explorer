@@ -68,8 +68,9 @@ Severity key: **P0** ship-blocker · **P1** high · **P2** medium · **P3** nice
 - [x] **Virtualize result grids.** _(v0.25.0)_ SOQL Editor + Data Explorer result
   tables window rows via `useVirtualRows` (renders only near-viewport rows past
   ~150). **Follow-up:** apply to the Object Explorer fields table if it grows.
-- [ ] **Friendly error mapping.** Map `INVALID_FIELD`, auth-expiry, etc. to
-  readable messages with a "copy details" affordance.
+- [x] **Friendly error mapping.** _(v0.30.0)_ `sfError.friendlyError` +
+  `ErrorNotice` (headline + hint + code tag + copy-details) wired into SOQL
+  Editor, Data Explorer, and Bulk tools.
 - [x] **Accessibility pass.** _(v0.25.0 + v0.27.0)_ All modals trap focus +
   Escape + focus restore (`useFocusTrap`); global focus-visible ring; SVG schema
   map + object-directory rows + Object Explorer field rows are keyboard-operable

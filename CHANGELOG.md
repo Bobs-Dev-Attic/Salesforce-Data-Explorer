@@ -3,6 +3,21 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-07-23
+
+### Added
+
+- **Friendly error messages (P2)** — Salesforce/OAuth errors were surfaced as
+  raw JSON. New `src/lib/sfError.ts#friendlyError` parses the common error
+  shapes (REST `[{message,errorCode}]`, OAuth `{error,error_description}`,
+  plain strings), extracts the useful message (incl. the real line out of a
+  multi-line SOQL error), and adds an actionable hint for common codes
+  (`INVALID_FIELD`, `MALFORMED_QUERY`, `INVALID_SESSION_ID`, `invalid_grant`, …).
+  - New `ErrorNotice` component renders the headline + hint + error-code tag,
+    with **Copy details** and a collapsible raw payload so precision is kept.
+  - Wired into the SOQL Editor, Data Explorer, and Bulk tools.
+  - 7 new unit tests (60 total).
+
 ## [0.29.0] - 2026-07-23
 
 ### Added
