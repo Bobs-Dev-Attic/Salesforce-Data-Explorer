@@ -1,4 +1,4 @@
-import { getAccessToken, API_VERSION } from "./salesforce";
+import { getAccessToken, invalidateAccessToken, API_VERSION } from "./salesforce";
 
 /**
  * Salesforce Bulk API 2.0 helpers.
@@ -22,16 +22,29 @@ async function bulkFetch(
   path: string,
   init: RequestInit & { rawBody?: string; accept?: string } = {}
 ): Promise<Response> {
-  const { accessToken, instanceUrl } = await getAccessToken(connectionId);
-  const url = path.startsWith("http")
-    ? path
-    : `${instanceUrl}${path.startsWith("/") ? "" : "/"}${path}`;
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${accessToken}`,
-    ...(init.headers as Record<string, string>),
+  const send = async (forceRefresh: boolean) => {
+    const { accessToken, instanceUrl } = await getAccessToken(
+      connectionId,
+      forceRefresh
+    );
+    const url = path.startsWith("http")
+      ? path
+      : `${instanceUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      ...(init.headers as Record<string, string>),
+    };
+    if (init.accept) headers["Accept"] = init.accept;
+    return fetch(url, { ...init, headers });
   };
-  if (init.accept) headers["Accept"] = init.accept;
-  return fetch(url, { ...init, headers });
+
+  const res = await send(false);
+  // Long-running bulk jobs can outlive a cached token — refresh once on 401.
+  if (res.status === 401) {
+    invalidateAccessToken(connectionId);
+    return send(true);
+  }
+  return res;
 }
 
 // ------------------------------------------------------------------

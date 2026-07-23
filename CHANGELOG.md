@@ -3,6 +3,21 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-07-23
+
+### Performance
+
+- **Access-token caching (P1)** — `getAccessToken` previously ran a full
+  `refresh_token` / `client_credentials` grant on *every* Salesforce call, so a
+  single object explore or export fanned out into many token requests. Tokens
+  are now cached in memory per connection until shortly before expiry (honoring
+  `expires_in` when returned, else a configurable `SF_TOKEN_TTL_SECONDS` default
+  of 15 min, minus a 60 s skew). `sfFetch` and the Bulk API fetch helper
+  invalidate and re-mint once on a `401`, so a token that expires early (session
+  revoked / short org timeout) self-heals. `disconnect` clears the cache.
+  New optional env var: `SF_TOKEN_TTL_SECONDS`. (Cache is per warm serverless
+  instance; a shared/persisted cache remains a possible follow-up.)
+
 ## [0.20.0] - 2026-07-23
 
 ### Security

@@ -164,6 +164,7 @@ interface SalesforceTokenResponse {
   id: string; // identity URL, e.g. https://login.salesforce.com/id/<orgId>/<userId>
   token_type: string;
   issued_at?: string;
+  expires_in?: number; // seconds; present for client_credentials, sometimes refresh
 }
 
 async function postToken(
@@ -220,7 +221,12 @@ function parseOrgId(identityUrl: string): string | null {
 /** Server-to-server token via the Client Credentials grant (no redirect_uri). */
 export async function clientCredentialsToken(
   appId: string
-): Promise<{ access_token: string; instance_url: string; id?: string }> {
+): Promise<{
+  access_token: string;
+  instance_url: string;
+  id?: string;
+  expires_in?: number;
+}> {
   const app = await getOAuthAppWithSecret(appId);
   const body = new URLSearchParams({
     grant_type: "client_credentials",
@@ -232,6 +238,7 @@ export async function clientCredentialsToken(
     access_token: json.access_token,
     instance_url: json.instance_url,
     id: json.id,
+    expires_in: json.expires_in,
   };
 }
 
@@ -272,7 +279,7 @@ export async function connectClientCredentials(
 async function refreshAccessToken(
   appId: string,
   refreshToken: string
-): Promise<{ access_token: string; instance_url: string }> {
+): Promise<{ access_token: string; instance_url: string; expires_in?: number }> {
   const app = await getOAuthAppWithSecret(appId);
   const body = new URLSearchParams({
     grant_type: "refresh_token",
@@ -281,7 +288,11 @@ async function refreshAccessToken(
     client_secret: app.client_secret,
   });
   const json = await postToken(app.login_url, body);
-  return { access_token: json.access_token, instance_url: json.instance_url };
+  return {
+    access_token: json.access_token,
+    instance_url: json.instance_url,
+    expires_in: json.expires_in,
+  };
 }
 
 // ------------------------------------------------------------------
@@ -414,12 +425,40 @@ export async function disconnect(connectionId: string): Promise<void> {
     .delete()
     .eq("id", connectionId);
   if (error) throw new Error(error.message);
+  invalidateAccessToken(connectionId);
 }
 
-/** Return a ready-to-use access token + instance url for a connection. */
-export async function getAccessToken(
-  connectionId: string
-): Promise<{ accessToken: string; instanceUrl: string }> {
+// ------------------------------------------------------------------
+// Access-token cache
+// ------------------------------------------------------------------
+
+/**
+ * Salesforce mints a fresh access token per grant, but previously we ran a full
+ * refresh_token / client_credentials round-trip on *every* sfFetch — a single
+ * object explore or export fanned out into many token requests (latency + OAuth
+ * rate-limit risk). We cache the token in memory per connection until shortly
+ * before expiry. `sfFetch` invalidates + re-mints on a 401 so a token that dies
+ * early (session revoked, short org timeout) self-heals.
+ *
+ * Caveat: cache is per warm serverless instance (not shared/persisted); on cold
+ * start it simply re-mints. Trade-off documented in TODO.md.
+ */
+type CachedToken = { accessToken: string; instanceUrl: string; expiresAt: number };
+const tokenCache = new Map<string, CachedToken>();
+
+// Fallback lifetime when Salesforce omits expires_in (refresh_token grant often
+// does). Kept short so a token can't outlive a low org session timeout by much;
+// the 401 retry covers the gap regardless. Overridable via env.
+const DEFAULT_TOKEN_TTL_SECONDS = Number(process.env.SF_TOKEN_TTL_SECONDS) || 900;
+const TOKEN_EXPIRY_SKEW_MS = 60_000; // renew a minute before the computed expiry
+
+/** Drop a connection's cached token (e.g. after a 401 or on disconnect). */
+export function invalidateAccessToken(connectionId: string): void {
+  tokenCache.delete(connectionId);
+}
+
+/** Run the actual grant and refresh the cache entry for a connection. */
+async function mintAccessToken(connectionId: string): Promise<CachedToken> {
   const supabase = getAdminClient();
   const { data, error } = await supabase
     .from("salesforce_connections")
@@ -443,10 +482,29 @@ export async function getAccessToken(
       .update({ instance_url: refreshed.instance_url })
       .eq("id", connectionId);
   }
-  return {
+  const ttlSeconds = refreshed.expires_in || DEFAULT_TOKEN_TTL_SECONDS;
+  const entry: CachedToken = {
     accessToken: refreshed.access_token,
     instanceUrl: refreshed.instance_url || (data.instance_url as string),
+    expiresAt: Date.now() + ttlSeconds * 1000 - TOKEN_EXPIRY_SKEW_MS,
   };
+  tokenCache.set(connectionId, entry);
+  return entry;
+}
+
+/** Return a ready-to-use access token + instance url, cached until near expiry. */
+export async function getAccessToken(
+  connectionId: string,
+  forceRefresh = false
+): Promise<{ accessToken: string; instanceUrl: string }> {
+  if (!forceRefresh) {
+    const cached = tokenCache.get(connectionId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { accessToken: cached.accessToken, instanceUrl: cached.instanceUrl };
+    }
+  }
+  const minted = await mintAccessToken(connectionId);
+  return { accessToken: minted.accessToken, instanceUrl: minted.instanceUrl };
 }
 
 /** Low-level authenticated request against the Salesforce REST API. */
@@ -455,18 +513,33 @@ export async function sfFetch(
   path: string,
   init?: RequestInit
 ): Promise<Response> {
-  const { accessToken, instanceUrl } = await getAccessToken(connectionId);
-  const url = path.startsWith("http")
-    ? path
-    : `${instanceUrl}${path.startsWith("/") ? "" : "/"}${path}`;
-  return fetch(url, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-  });
+  const send = async (forceRefresh: boolean) => {
+    const { accessToken, instanceUrl } = await getAccessToken(
+      connectionId,
+      forceRefresh
+    );
+    const url = path.startsWith("http")
+      ? path
+      : `${instanceUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+    return fetch(url, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        ...(init?.headers || {}),
+      },
+    });
+  };
+
+  const res = await send(false);
+  // A cached token that expired early (session revoked / short org timeout)
+  // returns 401 — invalidate and retry once with a freshly minted token. Safe:
+  // a 401 means the request was rejected before any side effect.
+  if (res.status === 401) {
+    invalidateAccessToken(connectionId);
+    return send(true);
+  }
+  return res;
 }
 
 export interface SoqlResult {

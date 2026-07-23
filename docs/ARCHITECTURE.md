@@ -82,7 +82,7 @@ All tables: `alter table ... enable row level security;` with **no policies** (s
 
 ## Key flows
 
-- **Access token**: `getAccessToken(connectionId)` in `salesforce.ts` mints a **fresh** token on *every* call (refresh_token or client_credentials grant). See TODO — this should be cached.
+- **Access token**: `getAccessToken(connectionId)` in `salesforce.ts` returns a **per-connection in-memory cached** token, minting via refresh_token/client_credentials only when the cache is empty or near expiry (honors `expires_in`, else `SF_TOKEN_TTL_SECONDS` default 15 min). `sfFetch`/`bulkFetch` re-mint once on a `401`; `disconnect` clears the entry. Cache is per warm serverless instance.
 - **Export**: `runSoql` (≤50k rows) → flatten → CSV/JSON/XLSX built fully in memory in the serverless function.
 - **Bulk import**: CSV is sent as a JSON string in the POST body (bounded by Vercel's ~4.5MB body limit).
 
@@ -96,4 +96,5 @@ change → PR → squash-merge → Vercel auto-deploys. `package.json` version +
 
 `APP_BASE_URL`, `APP_PASSWORD`, `APP_SESSION_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`
 (32 bytes base64), `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+Optional: `SF_TOKEN_TTL_SECONDS` (access-token cache fallback TTL, default 900).
 Salesforce Connected App creds are stored **in-app** (DB), not env, since v0.3.0.
