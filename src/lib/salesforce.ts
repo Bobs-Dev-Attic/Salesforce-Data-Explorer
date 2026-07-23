@@ -609,4 +609,31 @@ export async function describeSObject(
   return json;
 }
 
+/**
+ * Approximate record counts for all counted objects, in one call
+ * (/limits/recordCount). Cached like other metadata.
+ */
+export async function getRecordCounts(
+  connectionId: string,
+  forceRefresh = false
+): Promise<Record<string, number>> {
+  const key = "recordCounts";
+  if (!forceRefresh) {
+    const cached = await getCached<Record<string, number>>(connectionId, key);
+    if (cached) return cached;
+  }
+  const res = await sfFetch(
+    connectionId,
+    `/services/data/${API_VERSION}/limits/recordCount`
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const json = (await res.json()) as {
+    sObjects: { count: number; name: string }[];
+  };
+  const map: Record<string, number> = {};
+  for (const s of json.sObjects) map[s.name] = s.count;
+  await setCached(connectionId, key, map);
+  return map;
+}
+
 export { API_VERSION };

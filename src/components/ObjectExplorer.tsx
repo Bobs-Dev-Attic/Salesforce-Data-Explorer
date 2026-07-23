@@ -61,6 +61,34 @@ export default function ObjectExplorer() {
   );
   const restoredRef = useRef(false);
 
+  // Approximate record counts + sort mode for the tree.
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [countsLoading, setCountsLoading] = useState(false);
+  const [sortMode, setSortMode] = usePersistentState<"name" | "count">(
+    "sfde.objects.sortMode",
+    "name"
+  );
+
+  const loadCounts = async (refresh = false) => {
+    setCountsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/salesforce/record-counts${refresh ? "?refresh=1" : ""}`
+      );
+      const data = await res.json();
+      if (res.ok) setCounts(data.counts || {});
+    } catch {
+      /* ignore — counts are optional */
+    } finally {
+      setCountsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Field metadata dialog (full describe of a single field)
   const [fieldModal, setFieldModal] = useState<Record<string, unknown> | null>(
     null
@@ -202,10 +230,23 @@ export default function ObjectExplorer() {
       if (!match(o)) continue;
       (o.custom ? cus : std).push(o);
     }
-    std.sort((a, b) => a.label.localeCompare(b.label));
-    cus.sort((a, b) => a.label.localeCompare(b.label));
+    const cmp = (a: GlobalObject, b: GlobalObject) => {
+      if (sortMode === "count") {
+        const ca = counts[a.name];
+        const cb = counts[b.name];
+        // Objects with a known count first, highest count first.
+        if (ca === undefined && cb === undefined)
+          return a.label.localeCompare(b.label);
+        if (ca === undefined) return 1;
+        if (cb === undefined) return -1;
+        return cb - ca;
+      }
+      return a.label.localeCompare(b.label);
+    };
+    std.sort(cmp);
+    cus.sort(cmp);
     return { standard: std, custom: cus };
-  }, [objects, filter]);
+  }, [objects, filter, sortMode, counts]);
 
   function Row({
     depth,
@@ -268,6 +309,11 @@ export default function ObjectExplorer() {
         >
           {o.label}
           <span className="api">{o.name}</span>
+          {counts[o.name] !== undefined && (
+            <span className="count-badge">
+              {counts[o.name].toLocaleString()}
+            </span>
+          )}
         </Row>
         {open && (
           <div>
@@ -372,6 +418,34 @@ export default function ObjectExplorer() {
             onChange={(e) => setFilter(e.target.value)}
             style={{ marginBottom: 10 }}
           />
+          <div
+            className="row"
+            style={{ gap: 8, marginBottom: 10, fontSize: 13 }}
+          >
+            <span className="muted">Sort</span>
+            <div className="seg" style={{ flex: "0 0 auto" }}>
+              <button
+                className={sortMode === "name" ? "on" : ""}
+                onClick={() => setSortMode("name")}
+              >
+                Name
+              </button>
+              <button
+                className={sortMode === "count" ? "on" : ""}
+                onClick={() => setSortMode("count")}
+              >
+                Records
+              </button>
+            </div>
+            <button
+              className="linkbtn"
+              onClick={() => loadCounts(true)}
+              title="Refresh record counts"
+              disabled={countsLoading}
+            >
+              {countsLoading ? "…" : "↻"}
+            </button>
+          </div>
           <div className="tree" style={{ maxHeight: 560, overflow: "auto" }}>
             <Row
               depth={0}
