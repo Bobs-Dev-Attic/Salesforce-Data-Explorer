@@ -3,6 +3,15 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-07-23
+
+### Added
+
+- **Object record counts** — the Object Explorer now shows an approximate record
+  count badge on each object (via Salesforce's `/limits/recordCount`, one cached
+  call for all objects) and a **Sort: Name / Records** toggle to order objects by
+  count. A ↻ button refreshes the counts. New `GET /api/salesforce/record-counts`.
+
 ## [0.18.0] - 2026-07-23
 
 ### Added
