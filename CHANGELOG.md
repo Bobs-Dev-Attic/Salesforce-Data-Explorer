@@ -3,6 +3,14 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.14.1] - 2026-07-22
+
+### Changed
+
+- Field metadata dialog now lays out properties in a **two-column grid** (single
+  column on narrow screens). Picklist values and nested-object properties span
+  the full width.
+
 ## [0.14.0] - 2026-07-22
 
 ### Added
