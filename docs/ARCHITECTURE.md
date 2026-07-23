@@ -37,6 +37,7 @@ src/lib/
   session.ts           app-auth cookie sign/verify (+ session epoch), checkPassword — async
   appSettings.ts       server key/value settings; session epoch read/bump (cached)
   env.ts               required-env validation (assertEnv / checkEnv)
+  sfError.ts           map raw Salesforce/OAuth errors → friendly message + hint
   supabase.ts          server-only service-role client (singleton)
   salesforce.ts        OAuth apps CRUD, connections CRUD, token mint, sfFetch,
                        runSoql, describeGlobal/SObject (+ 24h Supabase cache),
@@ -74,7 +75,7 @@ src/app/*/page.tsx     pages: / (dashboard), /login, /explorer, /query, /objects
 src/components/        DataExplorer, QueryRunner (SOQL editor), ObjectExplorer (tree),
                        RelationshipMap (schema SVG), BulkTools, ConnectionsManager,
                        ObjectPicker, ConnectionSwitcher, AppMenu, GlobalProgress, ExportMenu,
-                       fieldUi (shared FunnelIcon + FieldMetadataDialog)
+                       ErrorNotice, fieldUi (shared FunnelIcon + FieldMetadataDialog)
 ```
 
 ## Data model (Supabase, `public`)

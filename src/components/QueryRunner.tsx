@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
+import ErrorNotice from "@/components/ErrorNotice";
+import { friendlyError } from "@/lib/sfError";
 
 const ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
 
@@ -360,7 +362,7 @@ export default function QueryRunner() {
                   error ? "err" : status ? "ok" : ""
                 }`}
               >
-                {error ? error : status ? status : "Ready"}
+                {error ? friendlyError(error).title : status ? status : "Ready"}
               </span>
               <ExportMenu
                 exporting={exporting}
@@ -368,6 +370,12 @@ export default function QueryRunner() {
                 onExport={exportData}
               />
             </div>
+
+            {error && (
+              <div style={{ padding: 12 }}>
+                <ErrorNotice error={error} />
+              </div>
+            )}
 
             {result && result.records.length > 0 && (
               <div
