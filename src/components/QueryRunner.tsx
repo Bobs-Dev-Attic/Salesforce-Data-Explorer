@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
+import { useVirtualRows } from "@/lib/useVirtualRows";
+import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
+
+const ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
 
 // ---- SOQL syntax highlighting ----
 const SOQL_KEYWORDS = [
@@ -98,7 +102,6 @@ export default function QueryRunner() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx" | "json">("csv");
   const [exporting, setExporting] = useState(false);
 
   const [saved, setSaved] = useState<SavedQuery[]>([]);
@@ -107,6 +110,7 @@ export default function QueryRunner() {
   const gutterRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
+  const resultScrollRef = useRef<HTMLDivElement>(null);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -154,14 +158,14 @@ export default function QueryRunner() {
     }
   }, [soql, limit]);
 
-  async function exportData() {
+  async function exportData(format: ExportFormat) {
     setExporting(true);
     setError(null);
     try {
       const res = await fetch("/api/salesforce/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ soql, maxRecords: 50000, format: exportFormat }),
+        body: JSON.stringify({ soql, maxRecords: 50000, format }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -172,7 +176,7 @@ export default function QueryRunner() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `soql-${new Date().toISOString().slice(0, 10)}.${exportFormat}`;
+      a.download = `soql-${new Date().toISOString().slice(0, 10)}.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -218,6 +222,8 @@ export default function QueryRunner() {
   const lineCount = Math.max(soql.split("\n").length, 1);
   const gutter = Array.from({ length: lineCount }, (_, i) => i + 1).join("\n");
   const columns = result ? columnsFrom(result.records) : [];
+  const records = result?.records ?? [];
+  const win = useVirtualRows(resultScrollRef, records.length, ROW_HEIGHT);
 
   return (
     <div>
@@ -267,6 +273,7 @@ export default function QueryRunner() {
                 className="linkbtn"
                 onClick={(e) => deleteSaved(q.id, e)}
                 title="Delete"
+                aria-label={`Delete saved query ${q.name}`}
               >
                 ✕
               </button>
@@ -355,32 +362,17 @@ export default function QueryRunner() {
               >
                 {error ? error : status ? status : "Ready"}
               </span>
-              <div className="row" style={{ gap: 8 }}>
-                <select
-                  value={exportFormat}
-                  onChange={(e) =>
-                    setExportFormat(e.target.value as "csv" | "xlsx" | "json")
-                  }
-                  style={{ width: "auto" }}
-                  disabled={!result || result.records.length === 0}
-                >
-                  <option value="csv">CSV</option>
-                  <option value="xlsx">Excel</option>
-                  <option value="json">JSON</option>
-                </select>
-                <button
-                  className="btn secondary"
-                  onClick={exportData}
-                  disabled={exporting || !result || result.records.length === 0}
-                >
-                  {exporting ? "Exporting…" : "Export ▾"}
-                </button>
-              </div>
+              <ExportMenu
+                exporting={exporting}
+                disabled={!result || result.records.length === 0}
+                onExport={exportData}
+              />
             </div>
 
             {result && result.records.length > 0 && (
               <div
                 className="table-wrap"
+                ref={resultScrollRef}
                 style={{ maxHeight: 460, overflowY: "auto", border: "none" }}
               >
                 <table>
@@ -392,8 +384,16 @@ export default function QueryRunner() {
                     </tr>
                   </thead>
                   <tbody>
-                    {result.records.map((r, i) => (
-                      <tr key={i}>
+                    {win.padTop > 0 && (
+                      <tr aria-hidden="true" style={{ height: win.padTop }}>
+                        <td
+                          colSpan={columns.length}
+                          style={{ padding: 0, border: 0 }}
+                        />
+                      </tr>
+                    )}
+                    {records.slice(win.start, win.end).map((r, i) => (
+                      <tr key={win.start + i}>
                         {columns.map((c) => (
                           <td key={c} title={cellValue(r[c])}>
                             {cellValue(r[c])}
@@ -401,6 +401,14 @@ export default function QueryRunner() {
                         ))}
                       </tr>
                     ))}
+                    {win.padBottom > 0 && (
+                      <tr aria-hidden="true" style={{ height: win.padBottom }}>
+                        <td
+                          colSpan={columns.length}
+                          style={{ padding: 0, border: 0 }}
+                        />
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

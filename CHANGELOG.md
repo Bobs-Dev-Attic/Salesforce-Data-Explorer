@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-07-23
+
+### Added
+
+- **Virtualized result grids (P2)** — the SOQL Editor and Data Explorer result
+  tables now window their rows (`src/lib/useVirtualRows.ts`): only the rows near
+  the viewport (plus overscan) render to the DOM, with spacer rows padding the
+  scroll height. Kicks in past ~150 rows; smaller results render in full as
+  before. Keeps large (up to 2,000-row) result sets responsive.
+- **SOQL Editor export dropdown** — the export control is now a single
+  **Export ▾** dropdown button (`src/components/ExportMenu.tsx`) listing CSV /
+  Excel / JSON; choosing a format runs the export directly. Closes on outside
+  click or Escape.
+
+### Accessibility (P2)
+
+- Modal dialogs (field metadata, destructive-op confirmation) now **trap focus**,
+  close on **Escape**, and **restore focus** to the trigger on close
+  (`src/lib/useFocusTrap.ts`), with `role="dialog"` + `aria-modal`.
+- Added a global keyboard **focus-visible ring** and `aria-label`s on icon-only
+  buttons that lacked them.
+
 ## [0.24.0] - 2026-07-23
 
 ### Changed

@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readPersisted, writePersisted } from "@/lib/usePersistentState";
 import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 import ObjectPicker from "@/components/ObjectPicker";
+import { useVirtualRows } from "@/lib/useVirtualRows";
 
 const EXPLORER_KEY = "sfde.explorer.state";
+const RESULT_ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
 
 interface GlobalObject {
   name: string;
@@ -186,6 +188,7 @@ export default function DataExplorer() {
   const [resColFilters, setResColFilters] = useState<Record<string, string>>({});
   const [resOpenFilter, setResOpenFilter] = useState<string | null>(null);
   const resFlyoutRef = useRef<HTMLDivElement>(null);
+  const resultScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!fieldModal && !resOpenFilter) return;
@@ -821,6 +824,12 @@ export default function DataExplorer() {
     }
   }
 
+  const resultWin = useVirtualRows(
+    resultScrollRef,
+    viewRows.length,
+    RESULT_ROW_HEIGHT
+  );
+
   return (
     <div>
       <h1>Data Explorer</h1>
@@ -1272,6 +1281,7 @@ export default function DataExplorer() {
           {displayRows.length > 0 ? (
             <div
               className="table-wrap"
+              ref={resultScrollRef}
               style={{ maxHeight: 560, overflowY: "auto", marginTop: 12 }}
             >
               <table>
@@ -1342,8 +1352,16 @@ export default function DataExplorer() {
                   </tr>
                 </thead>
                 <tbody>
-                  {viewRows.map((r, i) => (
-                    <tr key={i}>
+                  {resultWin.padTop > 0 && (
+                    <tr aria-hidden="true" style={{ height: resultWin.padTop }}>
+                      <td
+                        colSpan={resultColumns.length}
+                        style={{ padding: 0, border: 0 }}
+                      />
+                    </tr>
+                  )}
+                  {viewRows.slice(resultWin.start, resultWin.end).map((r, i) => (
+                    <tr key={resultWin.start + i}>
                       {resultColumns.map((c) => (
                         <td key={c} title={r[c] ?? ""}>
                           {r[c] ?? ""}
@@ -1351,6 +1369,17 @@ export default function DataExplorer() {
                       ))}
                     </tr>
                   ))}
+                  {resultWin.padBottom > 0 && (
+                    <tr
+                      aria-hidden="true"
+                      style={{ height: resultWin.padBottom }}
+                    >
+                      <td
+                        colSpan={resultColumns.length}
+                        style={{ padding: 0, border: 0 }}
+                      />
+                    </tr>
+                  )}
                   {viewRows.length === 0 && (
                     <tr>
                       <td colSpan={resultColumns.length} className="muted">

@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /** Small funnel icon used on filterable column headers. */
 export function FunnelIcon({ active }: { active: boolean }) {
@@ -56,6 +57,8 @@ export function FieldMetadataDialog({
     ...priority.filter((k) => keys.includes(k)),
     ...keys.filter((k) => !priority.includes(k)).sort(),
   ];
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, onClose);
 
   function renderValue(key: string, value: unknown): React.ReactNode {
     if (value === null || value === undefined || value === "") return "—";
@@ -86,7 +89,14 @@ export function FieldMetadataDialog({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Field details: ${String(field.label ?? field.name)}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
           <h2 style={{ margin: 0, fontSize: 18 }}>
             {String(field.label ?? field.name)}{" "}
