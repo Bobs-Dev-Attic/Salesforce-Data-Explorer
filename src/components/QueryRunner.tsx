@@ -192,6 +192,8 @@ export default function QueryRunner() {
 
   const [saved, setSaved] = useState<SavedQuery[]>([]);
   const [needsMigration, setNeedsMigration] = useState(false);
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
+  const justSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const gutterRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -431,10 +433,11 @@ export default function QueryRunner() {
     };
   }, [soql, scheduleLint]);
 
-  // Clear any pending autocomplete timer on unmount.
+  // Clear any pending timers on unmount.
   useEffect(
     () => () => {
       if (acTimerRef.current) clearTimeout(acTimerRef.current);
+      if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
     },
     []
   );
@@ -600,7 +603,20 @@ export default function QueryRunner() {
       });
       const data = await res.json();
       if (!res.ok) setError(data.error || "Failed to save");
-      else await loadSaved();
+      else {
+        await loadSaved();
+        // Flag the new entry so the sidebar can flash a "New" indicator that
+        // fades over 60s.
+        const newId: string | null = data.query?.id ?? null;
+        if (newId) {
+          setJustSavedId(newId);
+          if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
+          justSavedTimerRef.current = setTimeout(
+            () => setJustSavedId(null),
+            60000
+          );
+        }
+      }
     } catch {
       setError("Network error");
     }
@@ -730,7 +746,7 @@ export default function QueryRunner() {
           {saved.map((q) => (
             <div
               key={q.id}
-              className="sqled-item"
+              className={`sqled-item${q.id === justSavedId ? " just-saved" : ""}`}
               onClick={() => setSoql(q.soql)}
               title={q.soql}
             >
@@ -742,6 +758,11 @@ export default function QueryRunner() {
                 }}
               >
                 {q.name}
+                {q.id === justSavedId && (
+                  <span className="saved-new" aria-label="Just saved">
+                    New
+                  </span>
+                )}
               </span>
               <button
                 className="linkbtn"

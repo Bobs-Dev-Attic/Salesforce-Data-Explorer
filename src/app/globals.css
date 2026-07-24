@@ -455,6 +455,55 @@ td.actions-cell {
 .sqled-item:hover {
   background: var(--panel-2);
 }
+/* Newly-saved query: a highlight + "New" badge that fade over 60 seconds. */
+.sqled-item.just-saved {
+  animation: savedRowFade 60s ease-out forwards;
+}
+.saved-new {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: var(--ok);
+  border-radius: 999px;
+  vertical-align: middle;
+  animation: savedBadgeFade 60s ease-out forwards;
+}
+@keyframes savedRowFade {
+  from {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+@keyframes savedBadgeFade {
+  0% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No fade animation — show a static highlight/badge instead; the 60s JS
+     timer still clears it. */
+  .sqled-item.just-saved {
+    animation: none;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .saved-new {
+    animation: none;
+  }
+}
 .sqled-main {
   border: 1px solid var(--border);
   border-radius: 10px;
