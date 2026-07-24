@@ -132,3 +132,29 @@ export function friendlyError(raw: unknown): FriendlyError {
     detail,
   };
 }
+
+/**
+ * Salesforce SOQL errors echo the offending location as "...Row:R:Column:C...".
+ * Extract it (1-based) so the editor can point at the exact spot. Returns null
+ * when no location is present.
+ */
+export function parseSoqlErrorLocation(
+  raw: unknown
+): { line: number; col: number } | null {
+  const text =
+    typeof raw === "string"
+      ? raw
+      : (() => {
+          try {
+            return JSON.stringify(raw);
+          } catch {
+            return String(raw);
+          }
+        })();
+  const m = text.match(/Row\s*:\s*(\d+)\s*:\s*Column\s*:\s*(\d+)/i);
+  if (!m) return null;
+  const line = parseInt(m[1], 10);
+  const col = parseInt(m[2], 10);
+  if (!Number.isFinite(line) || !Number.isFinite(col)) return null;
+  return { line: Math.max(1, line), col: Math.max(1, col) };
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { friendlyError } from "./sfError";
+import { friendlyError, parseSoqlErrorLocation } from "./sfError";
 
 describe("friendlyError", () => {
   it("extracts the real message from a SOQL INVALID_FIELD error", () => {
@@ -61,5 +61,29 @@ describe("friendlyError", () => {
   it("gives a generic title when nothing usable is present", () => {
     const fe = friendlyError(JSON.stringify([{}]));
     expect(fe.title).toBe("The request failed.");
+  });
+});
+
+describe("parseSoqlErrorLocation", () => {
+  it("extracts 1-based line/col from a Row:Column marker", () => {
+    const raw = JSON.stringify([
+      {
+        message:
+          "\nSELECT Id, Foo FROM Account\n            ^\nERROR at Row:1:Column:12\nNo such column 'Foo'.",
+        errorCode: "INVALID_FIELD",
+      },
+    ]);
+    expect(parseSoqlErrorLocation(raw)).toEqual({ line: 1, col: 12 });
+  });
+
+  it("tolerates spacing variations", () => {
+    expect(parseSoqlErrorLocation("ERROR at Row: 3 : Column: 5")).toEqual({
+      line: 3,
+      col: 5,
+    });
+  });
+
+  it("returns null when no location is present", () => {
+    expect(parseSoqlErrorLocation("unexpected token: FROM")).toBeNull();
   });
 });
