@@ -3,6 +3,23 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.44.0] - 2026-07-24
+
+### Changed
+
+- **Excel view grid** — refinements to the spreadsheet:
+  - Removed the redundant **column-letter header row** (A, B, C…). The frozen
+    field-name row is now the single sticky header, and the Name Box shows the
+    active cell as `Field:Row` (e.g. `Name:5`) instead of an A1 reference.
+  - **Resizable columns** — drag the right edge of any field header; widths
+    persist to localStorage (`sfde.xl.colw`).
+  - **Resizable rows** — drag the bottom edge of any row-number cell to set a
+    uniform row height (18–240 px); persisted (`sfde.xl.rowh`).
+  - **Wrap Text** toggle (View ribbon, persisted `sfde.xl.wrap`) — cells flow
+    onto multiple lines instead of clipping. Wrap mode renders all rows directly
+    (virtualization needs uniform heights); it stays off by default.
+  - **Reset Sizes** command clears custom column widths and row height.
+
 ## [0.43.0] - 2026-07-24
 
 ### Added

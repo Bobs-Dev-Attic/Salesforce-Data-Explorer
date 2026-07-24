@@ -4,9 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
 import ObjectPicker from "@/components/ObjectPicker";
 import { useVirtualRows } from "@/lib/useVirtualRows";
-import { colLetter, cellRef } from "@/lib/colLetter";
+import { useColumnWidths } from "@/lib/useColumnWidths";
+import { usePersistentState } from "@/lib/usePersistentState";
 
 const XL_ROW_H = 24;
+const XL_MIN_ROW_H = 18;
+const XL_MAX_ROW_H = 240;
 const XL_COL_W = 132;
 const GUTTER_W = 48;
 
@@ -121,8 +124,33 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
   const [tab, setTab] = useState<Tab>("home");
   const [panel, setPanel] = useState<Panel>(null);
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null);
+  const [wrap, setWrap] = usePersistentState<boolean>("sfde.xl.wrap", false);
+  const [rowH, setRowH] = usePersistentState<number>("sfde.xl.rowh", XL_ROW_H);
+  const colw = useColumnWidths("sfde.xl.colw", { defaultWidth: XL_COL_W });
   const ribbonRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const rowHRef = useRef(rowH);
+  rowHRef.current = rowH;
+
+  // Drag the bottom edge of a row header to set a uniform row height.
+  const startRowResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const baseline = rowHRef.current;
+    const onMove = (ev: PointerEvent) => {
+      const next = Math.round(baseline + (ev.clientY - startY));
+      setRowH(Math.min(XL_MAX_ROW_H, Math.max(XL_MIN_ROW_H, next)));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.classList.remove("col-resizing");
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    document.body.classList.add("col-resizing");
+  };
 
   // Close a ribbon panel on outside click / Escape.
   useEffect(() => {
@@ -142,8 +170,12 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
     };
   }, [panel]);
 
-  const win = useVirtualRows(gridRef, rows.length, XL_ROW_H);
-  const tableWidth = GUTTER_W + resultColumns.length * XL_COL_W;
+  // Wrapped cells have content-driven heights, which the fixed-height
+  // virtualizer can't measure — render every row directly in wrap mode.
+  const win = useVirtualRows(gridRef, wrap ? 0 : rows.length, rowH);
+  const start = wrap ? 0 : win.start;
+  const end = wrap ? rows.length : win.end;
+  const tableWidth = GUTTER_W + colw.total(resultColumns);
 
   // Status-bar aggregates for the selected column.
   const stats = useMemo(() => {
@@ -166,7 +198,9 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
     return { count, sum, avg: numeric ? sum / numeric : 0, allNumeric };
   }, [sel, rows, resultColumns]);
 
-  const activeCellRef = sel ? cellRef(sel.c, sel.r + 1) : selectedObject || "A1";
+  const activeCellRef = sel
+    ? `${resultColumns[sel.c] ?? ""}:${sel.r + 1}`
+    : selectedObject || "—";
   const formulaText = sel ? rows[sel.r]?.[resultColumns[sel.c]] ?? "" : soql;
 
   return (
@@ -345,15 +379,40 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
         )}
 
         {tab === "view" && (
-          <div className="xl-group">
-            <div className="xl-group-items">
-              <button className="xl-big" onClick={onExitExcel}>
-                <span className="xl-big-ico">🗂️</span>
-                Classic
-              </button>
+          <>
+            <div className="xl-group">
+              <div className="xl-group-items">
+                <button
+                  className={`xl-cmd${wrap ? " on" : ""}`}
+                  aria-pressed={wrap}
+                  onClick={() => setWrap((w) => !w)}
+                  title="Wrap cell text onto multiple lines"
+                >
+                  {wrap ? "☑" : "☐"} Wrap Text
+                </button>
+                <button
+                  className="xl-cmd"
+                  onClick={() => {
+                    colw.reset();
+                    setRowH(XL_ROW_H);
+                  }}
+                  title="Reset all row heights and column widths"
+                >
+                  Reset Sizes
+                </button>
+              </div>
+              <div className="xl-group-label">Cells</div>
             </div>
-            <div className="xl-group-label">Workbook Views</div>
-          </div>
+            <div className="xl-group">
+              <div className="xl-group-items">
+                <button className="xl-big" onClick={onExitExcel}>
+                  <span className="xl-big-ico">🗂️</span>
+                  Classic
+                </button>
+              </div>
+              <div className="xl-group-label">Workbook Views</div>
+            </div>
+          </>
         )}
 
         {/* Ribbon dropdown panels */}
@@ -510,52 +569,58 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
               : "Pick an object on the Data tab to begin."}
           </div>
         ) : (
-          <table className="xl-grid" style={{ width: tableWidth }}>
+          <table
+            className={`xl-grid${wrap ? " wrap" : ""}`}
+            style={{ width: tableWidth }}
+          >
             <colgroup>
               <col style={{ width: GUTTER_W }} />
               {resultColumns.map((c) => (
-                <col key={c} style={{ width: XL_COL_W }} />
+                <col key={c} style={{ width: colw.widthOf(c) }} />
               ))}
             </colgroup>
             <thead>
-              {/* Column-letter header */}
-              <tr className="xl-letters">
-                <th className="xl-corner" />
+              {/* Field-name header */}
+              <tr className="xl-fields">
+                <th className="xl-rowhead xl-corner" />
                 {resultColumns.map((c, ci) => (
                   <th
                     key={c}
-                    className={sel?.c === ci ? "xl-collabel hi" : "xl-collabel"}
+                    className={sel?.c === ci ? "xl-fieldhead hi" : "xl-fieldhead"}
+                    title={c}
                   >
-                    {colLetter(ci)}
-                  </th>
-                ))}
-              </tr>
-              {/* Field-name header */}
-              <tr className="xl-fields">
-                <th className="xl-rowhead" />
-                {resultColumns.map((c) => (
-                  <th key={c} className="xl-fieldhead" title={c}>
                     {c}
+                    <span
+                      className="xl-col-resize"
+                      onPointerDown={(e) => colw.startResize(c, e)}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Drag to resize column"
+                    />
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {win.padTop > 0 && (
+              {!wrap && win.padTop > 0 && (
                 <tr aria-hidden="true" style={{ height: win.padTop }}>
                   <td colSpan={resultColumns.length + 1} style={{ padding: 0 }} />
                 </tr>
               )}
-              {rows.slice(win.start, win.end).map((r, i) => {
-                const rowIdx = win.start + i;
+              {rows.slice(start, end).map((r, i) => {
+                const rowIdx = start + i;
                 return (
-                  <tr key={rowIdx}>
+                  <tr key={rowIdx} style={{ height: rowH }}>
                     <th
                       className={
                         sel?.r === rowIdx ? "xl-rowhead hi" : "xl-rowhead"
                       }
                     >
                       {rowIdx + 1}
+                      <span
+                        className="xl-row-resize"
+                        onPointerDown={startRowResize}
+                        title="Drag to resize rows"
+                      />
                     </th>
                     {resultColumns.map((c, ci) => {
                       const selected = sel?.r === rowIdx && sel?.c === ci;
@@ -573,7 +638,7 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
                   </tr>
                 );
               })}
-              {win.padBottom > 0 && (
+              {!wrap && win.padBottom > 0 && (
                 <tr aria-hidden="true" style={{ height: win.padBottom }}>
                   <td colSpan={resultColumns.length + 1} style={{ padding: 0 }} />
                 </tr>
