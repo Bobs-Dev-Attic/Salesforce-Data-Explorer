@@ -3,6 +3,23 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.42.0] - 2026-07-24
+
+### Changed
+
+- **Data Explorer layout reworked** into a tighter, single-row builder:
+  - The **Object** picker now lives at the top of the **Columns** section (its
+    own card is gone).
+  - **Saved queries**, **Columns**, and **Filters** sit together in one
+    three-column row (stacks on narrow screens).
+  - **Saved queries** and **Generated SOQL** are now **collapsible** (chevron
+    toggle; collapsed state remembered in localStorage).
+  - Clicking a saved query opens a **confirmation dialog** before loading (it
+    replaces the current builder), and when the current query isn't already
+    saved it offers **"Save current & load"** so you don't lose unsaved work.
+  - The results table's **Download** button is replaced by the shared **Export ▾**
+    dropdown (CSV / Tab-delimited / Excel / JSON), matching the SOQL Editor.
+
 ## [0.41.0] - 2026-07-24
 
 ### Added

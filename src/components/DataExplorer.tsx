@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readPersisted, writePersisted } from "@/lib/usePersistentState";
+import {
+  readPersisted,
+  writePersisted,
+  usePersistentState,
+} from "@/lib/usePersistentState";
 import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 import ObjectPicker from "@/components/ObjectPicker";
 import ErrorNotice from "@/components/ErrorNotice";
+import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 import { useColumnWidths } from "@/lib/useColumnWidths";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 const EXPLORER_KEY = "sfde.explorer.state";
 const RESULT_ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
@@ -171,13 +177,20 @@ export default function DataExplorer() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [exportFormat, setExportFormat] = useState<
-    "csv" | "tsv" | "xlsx" | "json"
-  >("csv");
   const [exporting, setExporting] = useState(false);
 
   const [saved, setSaved] = useState<SavedQuery[]>([]);
   const [savedNeedsMigration, setSavedNeedsMigration] = useState(false);
+  // Collapsible sections + the load-confirmation dialog.
+  const [savedCollapsed, setSavedCollapsed] = usePersistentState(
+    "sfde.explorer.savedCollapsed",
+    false
+  );
+  const [soqlCollapsed, setSoqlCollapsed] = usePersistentState(
+    "sfde.explorer.soqlCollapsed",
+    false
+  );
+  const [pendingLoad, setPendingLoad] = useState<SavedQuery | null>(null);
 
   // Full describe field objects, keyed by name, for the metadata dialog.
   const [rawFieldMap, setRawFieldMap] = useState<
@@ -670,7 +683,7 @@ export default function DataExplorer() {
     }
   }
 
-  async function exportData() {
+  async function exportData(format: ExportFormat) {
     if (!soql) return;
     setExporting(true);
     setError(null);
@@ -681,7 +694,7 @@ export default function DataExplorer() {
         body: JSON.stringify({
           soql,
           maxRecords: 50000,
-          format: exportFormat,
+          format,
           filename: selectedObject || "export",
         }),
       });
@@ -696,7 +709,7 @@ export default function DataExplorer() {
       a.href = url;
       a.download = `${selectedObject || "export"}-${new Date()
         .toISOString()
-        .slice(0, 10)}.${exportFormat}`;
+        .slice(0, 10)}.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -730,10 +743,10 @@ export default function DataExplorer() {
     };
   }
 
-  async function saveCurrent() {
-    if (!soql) return;
+  async function saveCurrent(): Promise<boolean> {
+    if (!soql) return false;
     const name = prompt("Save query as:");
-    if (!name || !name.trim()) return;
+    if (!name || !name.trim()) return false;
     setError(null);
     try {
       const res = await fetch("/api/salesforce/saved-queries", {
@@ -747,11 +760,36 @@ export default function DataExplorer() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) setError(data.error || "Failed to save");
-      else await loadSaved();
+      if (!res.ok) {
+        setError(data.error || "Failed to save");
+        return false;
+      }
+      await loadSaved();
+      return true;
     } catch {
       setError("Network error");
+      return false;
     }
+  }
+
+  // Clicking a saved chip asks for confirmation first (see the load dialog).
+  function requestLoad(q: SavedQuery) {
+    setPendingLoad(q);
+  }
+
+  async function confirmSaveAndLoad() {
+    const target = pendingLoad;
+    if (!target) return;
+    const ok = await saveCurrent();
+    if (!ok) return; // save cancelled/failed — keep the dialog open
+    loadQuery(target);
+    setPendingLoad(null);
+  }
+
+  function confirmLoad() {
+    if (!pendingLoad) return;
+    loadQuery(pendingLoad);
+    setPendingLoad(null);
   }
 
   function loadQuery(q: SavedQuery) {
@@ -852,74 +890,87 @@ export default function DataExplorer() {
       </p>
       {error && <ErrorNotice error={error} />}
 
-      {/* Saved queries */}
-      <div className="card">
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0 }}>Saved queries</h2>
-          <button
-            className="btn secondary"
-            onClick={saveCurrent}
-            disabled={!soql}
-          >
-            Save current
-          </button>
-        </div>
-        {savedNeedsMigration && (
-          <p className="muted" style={{ marginTop: 10 }}>
-            Run <code>0003_saved_queries.sql</code> in Supabase to enable saving.
-          </p>
-        )}
-        {saved.length > 0 ? (
-          <div className="actions" style={{ marginTop: 12 }}>
-            {saved.map((q) => (
-              <span key={q.id} className="saved-chip">
-                <button className="linkbtn" onClick={() => loadQuery(q)}>
-                  {q.name}
-                </button>
-                <button
-                  className="linkbtn"
-                  onClick={() => deleteSaved(q.id)}
-                  title="Delete"
-                  style={{ marginLeft: 6 }}
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
+      {/* Build row: Saved queries · Columns · Filters */}
+      <div className="grid3">
+        {/* Saved queries (collapsible) */}
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <button
+              type="button"
+              className="linkbtn collapse-toggle"
+              aria-expanded={!savedCollapsed}
+              onClick={() => setSavedCollapsed((c) => !c)}
+            >
+              <span aria-hidden="true">{savedCollapsed ? "▸" : "▾"}</span>
+              <h2 style={{ margin: 0, display: "inline" }}>Saved queries</h2>
+            </button>
+            <button
+              className="btn secondary"
+              onClick={() => saveCurrent()}
+              disabled={!soql}
+            >
+              Save current
+            </button>
           </div>
-        ) : (
-          !savedNeedsMigration && (
+          {!savedCollapsed && (
+            <>
+              {savedNeedsMigration && (
+                <p className="muted" style={{ marginTop: 10 }}>
+                  Run <code>0003_saved_queries.sql</code> in Supabase to enable
+                  saving.
+                </p>
+              )}
+              {saved.length > 0 ? (
+                <div className="actions" style={{ marginTop: 12 }}>
+                  {saved.map((q) => (
+                    <span key={q.id} className="saved-chip">
+                      <button
+                        className="linkbtn"
+                        onClick={() => requestLoad(q)}
+                      >
+                        {q.name}
+                      </button>
+                      <button
+                        className="linkbtn"
+                        onClick={() => deleteSaved(q.id)}
+                        title="Delete"
+                        style={{ marginLeft: 6 }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                !savedNeedsMigration && (
+                  <p className="muted" style={{ marginTop: 10 }}>
+                    No saved queries yet. Build one and click “Save current”.
+                  </p>
+                )
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Columns (with the object picker) */}
+        <div className="card">
+          <h2>Columns</h2>
+          <label htmlFor="obj">Object</label>
+          <ObjectPicker
+            id="obj"
+            objects={objects}
+            value={selectedObject}
+            onSelect={setSelectedObject}
+            placeholder={
+              objectsLoading ? "Loading objects…" : "Type to search…"
+            }
+          />
+          {!selectedObject ? (
             <p className="muted" style={{ marginTop: 10 }}>
-              No saved queries yet. Build one below and click “Save current”.
+              Choose an object above to pick columns.
             </p>
-          )
-        )}
-      </div>
-
-      {/* Object picker */}
-      <div className="card">
-        <label htmlFor="obj">Object</label>
-        <ObjectPicker
-          id="obj"
-          objects={objects}
-          value={selectedObject}
-          onSelect={setSelectedObject}
-          placeholder={
-            objectsLoading ? "Loading objects…" : "Type to search…"
-          }
-        />
-        {selectedObject && (
-          <p className="muted" style={{ marginTop: 8 }}>
-            Selected: <code>{selectedObject}</code>
-          </p>
-        )}
-      </div>
-
-      {selectedObject && (
-        <div className="grid2">
-          {/* Columns */}
-          <div className="card">
-            <h2>Columns</h2>
+          ) : (
+            <div style={{ marginTop: 12 }}>
             {fieldsLoading ? (
               <p className="spinner">Loading fields…</p>
             ) : (
@@ -1128,11 +1179,19 @@ export default function DataExplorer() {
                 )}
               </>
             )}
-          </div>
+            </div>
+          )}
+        </div>
 
-          {/* Filters + options */}
-          <div className="card">
-            <h2>Filters</h2>
+        {/* Filters */}
+        <div className="card">
+          <h2>Filters</h2>
+          {!selectedObject ? (
+            <p className="muted" style={{ marginTop: 10 }}>
+              Select an object to add filters.
+            </p>
+          ) : (
+            <>
             <div className="row" style={{ gap: 8, marginBottom: 10 }}>
               <span className="muted">Combine with</span>
               <select
@@ -1218,20 +1277,33 @@ export default function DataExplorer() {
                 />
               </div>
             </div>
+            </>
+          )}
           </div>
         </div>
-      )}
 
-      {/* Generated SOQL */}
+      {/* Generated SOQL (collapsible) */}
       {selectedObject && (
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>Generated SOQL</h2>
+            <button
+              type="button"
+              className="linkbtn collapse-toggle"
+              aria-expanded={!soqlCollapsed}
+              onClick={() => setSoqlCollapsed((c) => !c)}
+            >
+              <span aria-hidden="true">{soqlCollapsed ? "▸" : "▾"}</span>
+              <h2 style={{ margin: 0, display: "inline" }}>Generated SOQL</h2>
+            </button>
             <div className="row" style={{ gap: 8 }}>
               <button className="btn secondary" onClick={copySoql}>
                 {copied ? "Copied!" : "Copy"}
               </button>
-              <button className="btn secondary" onClick={saveCurrent} disabled={!soql}>
+              <button
+                className="btn secondary"
+                onClick={() => saveCurrent()}
+                disabled={!soql}
+              >
                 Save
               </button>
               <button className="btn" onClick={run} disabled={running || !soql}>
@@ -1239,21 +1311,24 @@ export default function DataExplorer() {
               </button>
             </div>
           </div>
-          <pre
-            style={{
-              marginTop: 12,
-              background: "var(--panel-2)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: 12,
-              overflowX: "auto",
-              fontFamily: '"SF Mono", ui-monospace, Menlo, Consolas, monospace',
-              fontSize: 13,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {soql}
-          </pre>
+          {!soqlCollapsed && (
+            <pre
+              style={{
+                marginTop: 12,
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: 12,
+                overflowX: "auto",
+                fontFamily:
+                  '"SF Mono", ui-monospace, Menlo, Consolas, monospace',
+                fontSize: 13,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {soql}
+            </pre>
+          )}
         </div>
       )}
 
@@ -1268,30 +1343,11 @@ export default function DataExplorer() {
               {result.records.length} of {result.totalSize} record(s)
               {!result.done && " (truncated)"}
             </p>
-            <div className="row" style={{ gap: 8 }}>
-              <span className="muted">Export</span>
-              <select
-                value={exportFormat}
-                onChange={(e) =>
-                  setExportFormat(
-                    e.target.value as "csv" | "tsv" | "xlsx" | "json"
-                  )
-                }
-                style={{ width: "auto" }}
-              >
-                <option value="csv">CSV (.csv)</option>
-                <option value="tsv">Tab-delimited (.tsv)</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-                <option value="json">JSON (.json)</option>
-              </select>
-              <button
-                className="btn secondary"
-                onClick={exportData}
-                disabled={exporting}
-              >
-                {exporting ? "Exporting…" : "Download"}
-              </button>
-            </div>
+            <ExportMenu
+              exporting={exporting}
+              disabled={!soql || displayRows.length === 0}
+              onExport={exportData}
+            />
           </div>
           {displayRows.length > 0 ? (
             <div
@@ -1430,6 +1486,83 @@ export default function DataExplorer() {
           onClose={() => setFieldModal(null)}
         />
       )}
+
+      {pendingLoad && (
+        <LoadConfirmDialog
+          query={pendingLoad}
+          offerSave={Boolean(soql) && !saved.some((s) => s.soql === soql)}
+          onCancel={() => setPendingLoad(null)}
+          onLoad={confirmLoad}
+          onSaveAndLoad={confirmSaveAndLoad}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Confirms loading a saved query (which replaces the current builder), and —
+ * when the current query isn't already saved — offers to save it first.
+ */
+function LoadConfirmDialog({
+  query,
+  offerSave,
+  onCancel,
+  onLoad,
+  onSaveAndLoad,
+}: {
+  query: SavedQuery;
+  offerSave: boolean;
+  onCancel: () => void;
+  onLoad: () => void;
+  onSaveAndLoad: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref, onCancel);
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Load saved query"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <h2 style={{ margin: 0, fontSize: 18 }}>Load “{query.name}”?</h2>
+          <button className="linkbtn" onClick={onCancel} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <div className="modal-body" style={{ padding: "14px 18px" }}>
+          <p style={{ marginTop: 0 }}>
+            This replaces your current query with the saved one.
+          </p>
+          {offerSave && (
+            <p className="muted" style={{ marginBottom: 0 }}>
+              Your current query isn’t saved — you can save it first so you
+              don’t lose it.
+            </p>
+          )}
+          <div
+            className="row"
+            style={{ gap: 8, marginTop: 18, justifyContent: "flex-end" }}
+          >
+            <button className="btn secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            {offerSave && (
+              <button className="btn secondary" onClick={onSaveAndLoad}>
+                Save current &amp; load
+              </button>
+            )}
+            <button className="btn" onClick={onLoad}>
+              Load
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
