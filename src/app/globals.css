@@ -1339,6 +1339,34 @@ tbody tr[tabindex]:focus-visible {
   }
 }
 
+/* Three-column build row: Saved queries · Columns · Filters */
+.grid3 {
+  display: grid;
+  grid-template-columns: 260px 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .grid3 {
+    grid-template-columns: 1fr;
+  }
+}
+/* A section header that toggles collapse (chevron + heading). */
+.collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font: inherit;
+}
+.collapse-toggle:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+.collapse-toggle h2 {
+  font-size: 18px;
+}
+
 .list {
   max-height: 520px;
   overflow-y: auto;
