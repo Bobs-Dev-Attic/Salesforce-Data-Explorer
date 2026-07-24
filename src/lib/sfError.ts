@@ -158,3 +158,36 @@ export function parseSoqlErrorLocation(
   if (!Number.isFinite(line) || !Number.isFinite(col)) return null;
   return { line: Math.max(1, line), col: Math.max(1, col) };
 }
+
+function rawText(raw: unknown): string {
+  return typeof raw === "string"
+    ? raw
+    : (() => {
+        try {
+          return JSON.stringify(raw);
+        } catch {
+          return String(raw);
+        }
+      })();
+}
+
+/**
+ * Extract the offending column (and entity) from an INVALID_FIELD error:
+ * "No such column 'Foo' on entity 'Account'." Returns null when absent.
+ */
+export function parseInvalidField(
+  raw: unknown
+): { column: string; entity?: string } | null {
+  const text = rawText(raw);
+  const withEntity = text.match(
+    /No such column '([^']+)' on (?:entity|sobject) '([^']+)'/i
+  );
+  if (withEntity) return { column: withEntity[1], entity: withEntity[2] };
+  const bare = text.match(/No such column '([^']+)'/i);
+  return bare ? { column: bare[1] } : null;
+}
+
+/** True when the error is Salesforce's tell for a missing comma between fields. */
+export function isMissingCommaError(raw: unknown): boolean {
+  return /aggregate expressions use field aliasing/i.test(rawText(raw));
+}

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { friendlyError, parseSoqlErrorLocation } from "./sfError";
+import {
+  friendlyError,
+  parseSoqlErrorLocation,
+  parseInvalidField,
+  isMissingCommaError,
+} from "./sfError";
 
 describe("friendlyError", () => {
   it("extracts the real message from a SOQL INVALID_FIELD error", () => {
@@ -85,5 +90,43 @@ describe("parseSoqlErrorLocation", () => {
 
   it("returns null when no location is present", () => {
     expect(parseSoqlErrorLocation("unexpected token: FROM")).toBeNull();
+  });
+});
+
+describe("parseInvalidField", () => {
+  it("extracts column and entity", () => {
+    const raw = JSON.stringify([
+      {
+        message: "No such column 'Naem' on entity 'Account'.",
+        errorCode: "INVALID_FIELD",
+      },
+    ]);
+    expect(parseInvalidField(raw)).toEqual({ column: "Naem", entity: "Account" });
+  });
+  it("falls back to bare column", () => {
+    expect(parseInvalidField("No such column 'Foo'.")).toEqual({
+      column: "Foo",
+    });
+  });
+  it("returns null otherwise", () => {
+    expect(parseInvalidField("something else")).toBeNull();
+  });
+});
+
+describe("isMissingCommaError", () => {
+  it("detects the aggregate-aliasing tell", () => {
+    expect(
+      isMissingCommaError(
+        JSON.stringify([
+          {
+            message: "only aggregate expressions use field aliasing",
+            errorCode: "MALFORMED_QUERY",
+          },
+        ])
+      )
+    ).toBe(true);
+  });
+  it("is false for other errors", () => {
+    expect(isMissingCommaError("unexpected token")).toBe(false);
   });
 });

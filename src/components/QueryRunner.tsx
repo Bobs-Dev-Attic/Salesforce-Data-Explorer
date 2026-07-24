@@ -5,7 +5,13 @@ import { usePersistentState } from "@/lib/usePersistentState";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
 import ErrorNotice from "@/components/ErrorNotice";
-import { friendlyError, parseSoqlErrorLocation } from "@/lib/sfError";
+import {
+  friendlyError,
+  parseSoqlErrorLocation,
+  parseInvalidField,
+  isMissingCommaError,
+} from "@/lib/sfError";
+import { nearest, distanceBudget } from "@/lib/fuzzy";
 import { caretCoordinates } from "@/lib/caretCoords";
 import {
   analyzeSoql,
@@ -19,7 +25,7 @@ import {
   type FieldMeta,
   type ObjectMeta,
 } from "@/lib/soqlComplete";
-import { lintSoql, type Diagnostic } from "@/lib/soqlLint";
+import { lintSoql, type Diagnostic, type Fix } from "@/lib/soqlLint";
 import { formatSoql } from "@/lib/soqlFormat";
 
 const ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
@@ -105,7 +111,8 @@ function wordEnd(text: string, start: number): number {
 function serverDiagnostic(
   text: string,
   message: string,
-  loc: { line: number; col: number } | null
+  loc: { line: number; col: number } | null,
+  fix?: Fix
 ): Diagnostic {
   if (loc) {
     const start = offsetOf(text, loc.line, loc.col);
@@ -116,9 +123,10 @@ function serverDiagnostic(
       col: loc.col,
       message,
       severity: "error",
+      fix,
     };
   }
-  return { start: 0, end: 0, line: 1, col: 1, message, severity: "error" };
+  return { start: 0, end: 0, line: 1, col: 1, message, severity: "error", fix };
 }
 
 interface SoqlResult {
@@ -396,13 +404,17 @@ export default function QueryRunner() {
     // Only validate fields when the FROM object is one we can describe.
     const from = fromObjectOf(text);
     let fields: Set<string> | null = null;
+    let fieldList: string[] | null = null;
     if (from && (!objectNames || objectNames.has(from.toLowerCase()))) {
       const describe = await ensureDescribe(from);
       if (describe.length) {
         fields = new Set(describe.map((f) => f.name.toLowerCase()));
+        fieldList = describe.map((f) => f.name);
       }
     }
-    setDiagnostics(lintSoql(text, { objects: objectNames, fields }, caret));
+    setDiagnostics(
+      lintSoql(text, { objects: objectNames, fields, fieldList }, caret)
+    );
   }, [soql, ensureDescribe]);
 
   // Debounced lint on text/caret changes.
@@ -460,14 +472,63 @@ export default function QueryRunner() {
       }
       const fe = friendlyError(data.error);
       const loc = parseSoqlErrorLocation(data.error);
-      const message = fe.hint ? `${fe.title} — ${fe.hint}` : fe.title;
-      setServerDiag(serverDiagnostic(text, message, loc));
+      let message = fe.hint ? `${fe.title} — ${fe.hint}` : fe.title;
+      let fix: Fix | undefined;
+
+      if (isMissingCommaError(data.error) && loc) {
+        // Insert a comma just before the aliased token Salesforce points at.
+        let ins = offsetOf(text, loc.line, loc.col);
+        while (ins > 0 && /\s/.test(text[ins - 1])) ins--;
+        fix = { start: ins, end: ins, replacement: ",", label: "Insert comma" };
+        message = "Missing comma between fields";
+      } else {
+        const inv = parseInvalidField(data.error);
+        if (inv && loc) {
+          const from = fromObjectOf(text);
+          const describe = from ? await ensureDescribe(from) : [];
+          const guess = nearest(
+            inv.column,
+            describe.map((f) => f.name),
+            distanceBudget(inv.column)
+          );
+          if (guess) {
+            const off = offsetOf(text, loc.line, loc.col);
+            fix = {
+              start: off,
+              end: off + inv.column.length,
+              replacement: guess,
+              label: `Use '${guess}'`,
+            };
+            message = `${fe.title} — did you mean '${guess}'?`;
+          }
+        }
+      }
+      setServerDiag(serverDiagnostic(text, message, loc, fix));
     } catch {
       setServerDiag(serverDiagnostic(text, "Network error during validation", null));
     } finally {
       setValidating(false);
     }
-  }, [soql]);
+  }, [soql, ensureDescribe]);
+
+  const applyFix = useCallback(
+    (fix: Fix) => {
+      const base = taRef.current?.value ?? soql;
+      const next = base.slice(0, fix.start) + fix.replacement + base.slice(fix.end);
+      setSoql(next);
+      setServerDiag(null);
+      setServerValid(false);
+      const pos = fix.start + fix.replacement.length;
+      requestAnimationFrame(() => {
+        const ta = taRef.current;
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(pos, pos);
+        }
+      });
+    },
+    [soql, setSoql]
+  );
 
   const run = useCallback(async () => {
     setLoading(true);
@@ -864,22 +925,33 @@ export default function QueryRunner() {
                 </span>
               )}
               {allDiagnostics.slice(0, 8).map((d, i) => (
-                <button
-                  key={`${d.start}-${i}`}
-                  type="button"
-                  role="listitem"
-                  className={`lintmsg ${d.severity}`}
-                  onClick={() => jumpTo(d)}
-                  title={`Go to line ${d.line}, column ${d.col}`}
-                >
-                  <span aria-hidden="true">
-                    {d.severity === "error" ? "⛔" : "⚠️"}
-                  </span>{" "}
-                  {d.message}{" "}
-                  <span className="muted">
-                    (Ln {d.line}:{d.col})
-                  </span>
-                </button>
+                <span key={`${d.start}-${i}`} className="lintmsg-group">
+                  <button
+                    type="button"
+                    role="listitem"
+                    className={`lintmsg ${d.severity}`}
+                    onClick={() => jumpTo(d)}
+                    title={`Go to line ${d.line}, column ${d.col}`}
+                  >
+                    <span aria-hidden="true">
+                      {d.severity === "error" ? "⛔" : "⚠️"}
+                    </span>{" "}
+                    {d.message}{" "}
+                    <span className="muted">
+                      (Ln {d.line}:{d.col})
+                    </span>
+                  </button>
+                  {d.fix && (
+                    <button
+                      type="button"
+                      className="lintfix"
+                      onClick={() => applyFix(d.fix!)}
+                      title="Apply this fix"
+                    >
+                      {d.fix.label}
+                    </button>
+                  )}
+                </span>
               ))}
               {allDiagnostics.length > 8 && (
                 <span className="muted" style={{ fontSize: 12, padding: "2px 6px" }}>

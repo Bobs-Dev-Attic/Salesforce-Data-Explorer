@@ -9,6 +9,7 @@ const accountFields = new Set([
   "createddate",
   "ownerid",
   "annualrevenue",
+  "accountnumber",
 ]);
 
 function messages(text: string, meta = {}, caret = -1) {
@@ -141,5 +142,61 @@ describe("unknown fields", () => {
 
   it("stays silent when the field set is not loaded", () => {
     expect(messages("SELECT Whatever FROM Account", { objects })).toEqual([]);
+  });
+
+  it("suggests the nearest field for a typo, with a replace fix", () => {
+    const d = lintSoql("SELECT Naem FROM Account", {
+      objects,
+      fields: accountFields,
+      fieldList: ["Id", "Name", "Industry", "CreatedDate"],
+    });
+    const f = d.find((x) => x.message.startsWith("Unknown field 'Naem'"))!;
+    expect(f.message).toContain("did you mean 'Name'?");
+    expect(f.fix).toEqual({
+      start: 7,
+      end: 11,
+      replacement: "Name",
+      label: "Use 'Name'",
+    });
+  });
+});
+
+describe("missing comma", () => {
+  const meta = { objects, fields: accountFields };
+
+  it("flags two adjacent SELECT fields and offers an insert-comma fix", () => {
+    const text = "SELECT Id, Name AccountNumber FROM Account";
+    const d = lintSoql(text, meta);
+    const mc = d.find((x) => x.message.startsWith("Missing comma"))!;
+    expect(mc).toBeTruthy();
+    expect(mc.severity).toBe("error");
+    expect(mc.message).toBe("Missing comma before 'AccountNumber'?");
+    // Applying the fix yields valid field separation.
+    const fixed =
+      text.slice(0, mc.fix!.start) + mc.fix!.replacement + text.slice(mc.fix!.end);
+    expect(fixed).toBe("SELECT Id, Name, AccountNumber FROM Account");
+  });
+
+  it("does not flag a correct comma-separated list", () => {
+    expect(
+      messages("SELECT Id, Name, AccountNumber FROM Account", meta)
+    ).toEqual([]);
+  });
+
+  it("does not flag aggregate aliasing (legal)", () => {
+    expect(
+      messages("SELECT COUNT(Id) total FROM Account GROUP BY Industry", meta)
+    ).toEqual([]);
+  });
+
+  it("does not flag a relationship field on its own", () => {
+    expect(messages("SELECT Account.Name FROM Contact", { objects })).toEqual(
+      []
+    );
+  });
+
+  it("does not flag the second field while it is under the caret", () => {
+    const text = "SELECT Id, Name Acc";
+    expect(messages(text, meta, text.length)).toEqual([]);
   });
 });

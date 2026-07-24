@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.39.0] - 2026-07-24
+
+### Added
+
+- **Quick-fixes in the SOQL Editor** — diagnostics can now carry a one-click fix,
+  shown as an action button beside the message in the problems bar. Applying it
+  edits the query and re-lints. Sources:
+  - **Missing comma** (client, before you Run) — `SELECT Name AccountNumber …`
+    is flagged as *"Missing comma before 'AccountNumber'?"* with an **Insert
+    comma** fix. This is exactly the case Salesforce rejects with *"only
+    aggregate expressions use field aliasing"* (it reads the second field as an
+    alias). Detection is conservative: SELECT list only, skips aggregate queries
+    (where aliasing is legal), subqueries, and functions.
+  - **"Did you mean…"** for a mistyped field (client) — an unknown field is
+    matched against the object's cached describe using Damerau-Levenshtein
+    (transpositions count as one edit), e.g. `Naem` → **Use 'Name'**.
+  - **Server-error → fix** (after **Check ✓**) — the aggregate-aliasing error
+    maps to an **Insert comma** at Salesforce's reported `Row:Column`, and
+    `INVALID_FIELD: No such column 'X'` maps to a **Use '<nearest>'** fix.
+- New pure helper `src/lib/fuzzy.ts` (Levenshtein + OSA distance + `nearest`, 8
+  tests); `parseInvalidField` / `isMissingCommaError` in `src/lib/sfError.ts`.
+
 ## [0.38.0] - 2026-07-24
 
 ### Fixed
