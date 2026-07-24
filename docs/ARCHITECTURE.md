@@ -51,10 +51,11 @@ src/lib/
   useVirtualRows.ts    row windowing for large result grids
   useFocusTrap.ts      modal focus trap + Escape + focus restore
   soqlComplete.ts      SOQL autocomplete engine — context analysis + ranking (pure)
+  soqlLint.ts          SOQL linter — structural + unknown object/field diagnostics (pure)
   caretCoords.ts       textarea caret pixel position (hidden-mirror) for the popup
 
 Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv,
-soqlComplete).
+soqlComplete, soqlLint).
 CI: .github/workflows/ci.yml runs typecheck → lint → test → build on PRs.
 
 src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated())

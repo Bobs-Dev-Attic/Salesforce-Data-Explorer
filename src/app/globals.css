@@ -427,6 +427,7 @@ td.actions-cell {
   min-height: 220px;
 }
 .sqled-highlight,
+.sqled-lint,
 .sqled-textarea {
   margin: 0;
   padding: 12px;
@@ -444,6 +445,55 @@ td.actions-cell {
   color: var(--editor-fg);
   pointer-events: none;
   z-index: 0;
+}
+/* Lint underline overlay: transparent text, wavy underlines only. */
+.sqled-lint {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
+  z-index: 0;
+}
+.sqled-lint .lint-err {
+  text-decoration: underline wavy var(--danger);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+.sqled-lint .lint-warn {
+  text-decoration: underline wavy var(--accent-2);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}
+/* Problems bar under the editor */
+.sqled-problems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.sqled-problems .lintmsg {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.sqled-problems .lintmsg:hover {
+  border-color: var(--accent);
+}
+.sqled-problems .lintmsg.error {
+  border-left: 3px solid var(--danger);
+}
+.sqled-problems .lintmsg.warning {
+  border-left: 3px solid var(--accent-2);
 }
 .sqled-textarea {
   position: absolute;

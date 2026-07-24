@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-07-24
+
+### Added
+
+- **SOQL inline validation (intellisense), Phase 2** — the SOQL Editor now lints
+  as you type, drawing wavy underlines under problems and listing them in a
+  clickable "problems" bar (jump-to-location) under the editor. No new runtime
+  dependencies. Checks:
+  - **Structural** (always on): unterminated string literals and unbalanced
+    parentheses, with the exact offset underlined.
+  - **Unknown object** after `FROM`, validated against the cached global object
+    list (error).
+  - **Unknown fields** in `SELECT` / `WHERE` / `ORDER BY` / `GROUP BY`, validated
+    against the FROM object's cached describe (warning).
+  - Conservative by design: relationship paths, function calls, and aggregate
+    aliases are skipped; field checks **bail entirely on subqueries / `TYPEOF`**
+    where a client-side field list can't be authoritative; and the identifier
+    **currently under the caret is never flagged** (you're still typing it).
+    Authoritative server-side validation remains Phase 3.
+- New pure, unit-tested engine `src/lib/soqlLint.ts` (structural + semantic
+  diagnostics with source offsets and 1-based line/col, 19 tests).
+
 ## [0.34.0] - 2026-07-24
 
 ### Added

@@ -14,10 +14,12 @@ import {
   keywordSuggestions,
   picklistSuggestions,
   resolveRelationship,
+  fromObjectOf,
   type Suggestion,
   type FieldMeta,
   type ObjectMeta,
 } from "@/lib/soqlComplete";
+import { lintSoql, type Diagnostic } from "@/lib/soqlLint";
 
 const ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
 
@@ -55,6 +57,31 @@ function highlightSoql(src: string): string {
   }
   out += escapeHtml(src.slice(last));
   // Trailing newline needs a filler so the overlay's height matches the textarea.
+  return out.endsWith("\n") ? out + " " : out;
+}
+
+/**
+ * Transparent overlay that draws only wavy underlines under diagnostic ranges,
+ * layered above the highlight and below the (transparent-text) textarea.
+ */
+function buildLintOverlay(src: string, diags: Diagnostic[]): string {
+  // Merge to non-overlapping ranges, keeping the strongest severity.
+  const sorted = [...diags].sort((a, b) => a.start - b.start || b.end - a.end);
+  let out = "";
+  let last = 0;
+  let cursor = -1;
+  for (const d of sorted) {
+    const start = Math.max(d.start, cursor);
+    if (start >= d.end) continue; // fully covered by a prior range
+    out += escapeHtml(src.slice(last, Math.max(last, d.start)));
+    const cls = d.severity === "error" ? "lint-err" : "lint-warn";
+    out += `<span class="${cls}" title="${escapeHtml(d.message)}">${escapeHtml(
+      src.slice(start, d.end)
+    )}</span>`;
+    last = d.end;
+    cursor = d.end;
+  }
+  out += escapeHtml(src.slice(last));
   return out.endsWith("\n") ? out + " " : out;
 }
 
@@ -139,6 +166,11 @@ export default function QueryRunner() {
     tokenStart: number;
     caret: number;
   } | null>(null);
+
+  // ---- Linter (intellisense Phase 2) ----
+  const lintPreRef = useRef<HTMLPreElement>(null);
+  const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -295,6 +327,47 @@ export default function QueryRunner() {
     node?.scrollIntoView({ block: "nearest" });
   }, [ac]);
 
+  const runLint = useCallback(async () => {
+    const ta = taRef.current;
+    const text = ta ? ta.value : soql;
+    const caret = ta ? ta.selectionStart ?? -1 : -1;
+    const objectNames = objectsRef.current.length
+      ? new Set(objectsRef.current.map((o) => o.name.toLowerCase()))
+      : null;
+    // Only validate fields when the FROM object is one we can describe.
+    const from = fromObjectOf(text);
+    let fields: Set<string> | null = null;
+    if (from && (!objectNames || objectNames.has(from.toLowerCase()))) {
+      const describe = await ensureDescribe(from);
+      if (describe.length) {
+        fields = new Set(describe.map((f) => f.name.toLowerCase()));
+      }
+    }
+    setDiagnostics(lintSoql(text, { objects: objectNames, fields }, caret));
+  }, [soql, ensureDescribe]);
+
+  // Debounced lint on text/caret changes.
+  const scheduleLint = useCallback(() => {
+    if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
+    lintTimerRef.current = setTimeout(() => void runLint(), 250);
+  }, [runLint]);
+
+  // Lint once on mount and whenever the query text changes.
+  useEffect(() => {
+    scheduleLint();
+    return () => {
+      if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
+    };
+  }, [soql, scheduleLint]);
+
+  function jumpTo(d: Diagnostic) {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.focus();
+    ta.setSelectionRange(d.start, d.end);
+    void runLint();
+  }
+
   const run = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -417,6 +490,9 @@ export default function QueryRunner() {
   }
 
   function onKeyUp(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+      scheduleLint(); // caret moved without changing text
+    }
     const navKeys = ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"];
     if (ac && navKeys.includes(e.key)) return;
     if (["Shift", "Control", "Meta", "Alt"].includes(e.key)) return;
@@ -537,6 +613,14 @@ export default function QueryRunner() {
                 aria-hidden="true"
                 dangerouslySetInnerHTML={{ __html: highlightSoql(soql) }}
               />
+              <pre
+                className="sqled-lint"
+                ref={lintPreRef}
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{
+                  __html: buildLintOverlay(soql, diagnostics),
+                }}
+              />
               <textarea
                 ref={taRef}
                 className="sqled-textarea"
@@ -551,7 +635,10 @@ export default function QueryRunner() {
                 }}
                 onKeyDown={onKeyDown}
                 onKeyUp={onKeyUp}
-                onClick={() => void refreshAc()}
+                onClick={() => {
+                  void refreshAc();
+                  scheduleLint();
+                }}
                 onBlur={() => setAc(null)}
                 onScroll={(e) => {
                   const t = e.currentTarget;
@@ -559,6 +646,10 @@ export default function QueryRunner() {
                   if (preRef.current) {
                     preRef.current.scrollTop = t.scrollTop;
                     preRef.current.scrollLeft = t.scrollLeft;
+                  }
+                  if (lintPreRef.current) {
+                    lintPreRef.current.scrollTop = t.scrollTop;
+                    lintPreRef.current.scrollLeft = t.scrollLeft;
                   }
                   if (ac) setAc(null);
                 }}
@@ -600,6 +691,34 @@ export default function QueryRunner() {
               )}
             </div>
           </div>
+
+          {diagnostics.length > 0 && (
+            <div className="sqled-problems" role="list">
+              {diagnostics.slice(0, 8).map((d, i) => (
+                <button
+                  key={`${d.start}-${i}`}
+                  type="button"
+                  role="listitem"
+                  className={`lintmsg ${d.severity}`}
+                  onClick={() => jumpTo(d)}
+                  title={`Go to line ${d.line}, column ${d.col}`}
+                >
+                  <span aria-hidden="true">
+                    {d.severity === "error" ? "⛔" : "⚠️"}
+                  </span>{" "}
+                  {d.message}{" "}
+                  <span className="muted">
+                    (Ln {d.line}:{d.col})
+                  </span>
+                </button>
+              ))}
+              {diagnostics.length > 8 && (
+                <span className="muted" style={{ fontSize: 12, padding: "2px 6px" }}>
+                  +{diagnostics.length - 8} more
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="sqled-results">
             <div className="sqled-results-head">
