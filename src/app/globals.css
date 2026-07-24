@@ -1423,10 +1423,35 @@ code {
   --xl-fieldfill: #e7f1ec;
   color: #201f1e;
   background: #ffffff;
-  border: 1px solid var(--xl-line);
-  border-radius: 8px;
-  overflow: hidden;
   font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  /* Fill the whole viewport, like a real spreadsheet window. */
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Non-grid chrome keeps its natural height; the grid grows to fill the rest. */
+.xl-title,
+.xl-tabs,
+.xl-ribbon,
+.xl-formulabar,
+.xl-errorslot,
+.xl-sheettabs,
+.xl-statusbar {
+  flex: none;
+}
+.xl-errorslot:empty {
+  display: none;
+}
+.xl-errorslot {
+  padding: 6px 10px 0;
+  overflow: auto;
+  max-height: 30vh;
+}
+body.xl-active {
+  overflow: hidden;
 }
 /* Title / quick-access bar */
 .xl-title {
@@ -1687,7 +1712,8 @@ code {
 }
 /* Spreadsheet grid */
 .xl-grid-wrap {
-  height: 460px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   background: #fff;
 }

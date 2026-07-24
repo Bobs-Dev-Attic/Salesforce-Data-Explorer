@@ -76,6 +76,7 @@ export interface ExcelDataViewProps {
   onLoadSaved: (id: string) => void;
   saveCurrent: () => void;
   // Chrome
+  errorSlot?: React.ReactNode;
   onExitExcel: () => void;
 }
 
@@ -125,8 +126,15 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
     saved,
     onLoadSaved,
     saveCurrent,
+    errorSlot,
     onExitExcel,
   } = props;
+
+  // The Excel view fills the viewport; lock body scroll while it's mounted.
+  useEffect(() => {
+    document.body.classList.add("xl-active");
+    return () => document.body.classList.remove("xl-active");
+  }, []);
 
   const [tab, setTab] = useState<Tab>("home");
   const [panel, setPanel] = useState<Panel>(null);
@@ -677,6 +685,9 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
           {formulaText}
         </span>
       </div>
+
+      {/* Error banner (kept visible inside the full-screen view) */}
+      {errorSlot && <div className="xl-errorslot">{errorSlot}</div>}
 
       {/* Spreadsheet grid */}
       <div className="xl-grid-wrap" ref={gridRef}>
