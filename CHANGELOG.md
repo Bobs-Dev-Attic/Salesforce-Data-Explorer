@@ -3,6 +3,26 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.36.0] - 2026-07-24
+
+### Added
+
+- **SOQL server-side validation (intellisense), Phase 3** — a **Check ✓** button
+  in the SOQL Editor validates the query authoritatively against Salesforce
+  **without running it**, using the Query Explain endpoint
+  (`/query/?explain=…`), which plans the query (objects, fields, relationships,
+  syntax) and returns zero rows.
+  - A valid query shows **"Valid — Salesforce accepted this query"**.
+  - An invalid query is surfaced inline: the Salesforce error is mapped through
+    `friendlyError`, and its `Row:Column` location (parsed by the new
+    `parseSoqlErrorLocation`) anchors a red underline on the exact token plus a
+    clickable entry in the problems bar. This catches what the client-side
+    linter can't — relationship-field validity, FLS/permission errors, and
+    Salesforce's own malformed-query diagnostics.
+- New route `POST /api/salesforce/validate` (`runtime="nodejs"`,
+  `isAuthenticated()`), and `parseSoqlErrorLocation` in `src/lib/sfError.ts`
+  (3 new tests). The stale server result clears automatically as you edit.
+
 ## [0.35.0] - 2026-07-24
 
 ### Added

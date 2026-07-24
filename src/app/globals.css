@@ -495,6 +495,10 @@ td.actions-cell {
 .sqled-problems .lintmsg.warning {
   border-left: 3px solid var(--accent-2);
 }
+.sqled-problems .lintmsg.valid {
+  border-left: 3px solid var(--ok);
+  cursor: default;
+}
 .sqled-textarea {
   position: absolute;
   inset: 0;

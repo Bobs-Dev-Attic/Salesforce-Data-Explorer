@@ -37,7 +37,8 @@ src/lib/
   session.ts           app-auth cookie sign/verify (+ session epoch), checkPassword — async
   appSettings.ts       server key/value settings; session epoch read/bump (cached)
   env.ts               required-env validation (assertEnv / checkEnv)
-  sfError.ts           map raw Salesforce/OAuth errors → friendly message + hint
+  sfError.ts           map raw Salesforce/OAuth errors → friendly message + hint;
+                       parseSoqlErrorLocation (Row:Column) for inline squiggles
   supabase.ts          server-only service-role client (singleton)
   salesforce.ts        OAuth apps CRUD, connections CRUD, token mint, sfFetch,
                        runSoql, describeGlobal/SObject (+ 24h Supabase cache),
@@ -65,6 +66,7 @@ src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated
   salesforce/connections[/id]            connection list / activate / rename / delete
   salesforce/connect-client-credentials  server-to-server connect
   salesforce/query                       SOQL runner
+  salesforce/validate                    SOQL validation via Query Explain (no rows)
   salesforce/objects[/name]              describeGlobal / describeSObject
   salesforce/record-counts               /limits/recordCount
   salesforce/export                      CSV / XLSX / JSON export

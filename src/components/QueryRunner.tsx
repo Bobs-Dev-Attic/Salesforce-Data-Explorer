@@ -5,7 +5,7 @@ import { usePersistentState } from "@/lib/usePersistentState";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
 import ErrorNotice from "@/components/ErrorNotice";
-import { friendlyError } from "@/lib/sfError";
+import { friendlyError, parseSoqlErrorLocation } from "@/lib/sfError";
 import { caretCoordinates } from "@/lib/caretCoords";
 import {
   analyzeSoql,
@@ -83,6 +83,41 @@ function buildLintOverlay(src: string, diags: Diagnostic[]): string {
   }
   out += escapeHtml(src.slice(last));
   return out.endsWith("\n") ? out + " " : out;
+}
+
+/** Char offset of a 1-based line/column within the text. */
+function offsetOf(text: string, line: number, col: number): number {
+  const lines = text.split("\n");
+  let off = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) off += lines[i].length + 1;
+  return Math.min(text.length, off + Math.max(0, col - 1));
+}
+
+/** End of the identifier starting at `start` (or one char if none). */
+function wordEnd(text: string, start: number): number {
+  let i = start;
+  while (i < text.length && /[A-Za-z0-9_]/.test(text[i])) i++;
+  return i > start ? i : Math.min(text.length, start + 1);
+}
+
+/** Build a diagnostic from a server validation error, anchored if we have a location. */
+function serverDiagnostic(
+  text: string,
+  message: string,
+  loc: { line: number; col: number } | null
+): Diagnostic {
+  if (loc) {
+    const start = offsetOf(text, loc.line, loc.col);
+    return {
+      start,
+      end: wordEnd(text, start),
+      line: loc.line,
+      col: loc.col,
+      message,
+      severity: "error",
+    };
+  }
+  return { start: 0, end: 0, line: 1, col: 1, message, severity: "error" };
 }
 
 interface SoqlResult {
@@ -171,6 +206,11 @@ export default function QueryRunner() {
   const lintPreRef = useRef<HTMLPreElement>(null);
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+
+  // ---- Server validation (intellisense Phase 3) ----
+  const [validating, setValidating] = useState(false);
+  const [serverDiag, setServerDiag] = useState<Diagnostic | null>(null);
+  const [serverValid, setServerValid] = useState(false);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -368,6 +408,40 @@ export default function QueryRunner() {
     void runLint();
   }
 
+  const validate = useCallback(async () => {
+    const text = taRef.current?.value ?? soql;
+    if (!text.trim()) return;
+    setValidating(true);
+    setServerValid(false);
+    setServerDiag(null);
+    try {
+      const res = await fetch("/api/salesforce/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ soql: text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setServerDiag(
+          serverDiagnostic(text, data.error || "Validation failed", null)
+        );
+        return;
+      }
+      if (data.valid) {
+        setServerValid(true);
+        return;
+      }
+      const fe = friendlyError(data.error);
+      const loc = parseSoqlErrorLocation(data.error);
+      const message = fe.hint ? `${fe.title} — ${fe.hint}` : fe.title;
+      setServerDiag(serverDiagnostic(text, message, loc));
+    } catch {
+      setServerDiag(serverDiagnostic(text, "Network error during validation", null));
+    } finally {
+      setValidating(false);
+    }
+  }, [soql]);
+
   const run = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -501,6 +575,7 @@ export default function QueryRunner() {
 
   const lineCount = Math.max(soql.split("\n").length, 1);
   const gutter = Array.from({ length: lineCount }, (_, i) => i + 1).join("\n");
+  const allDiagnostics = serverDiag ? [...diagnostics, serverDiag] : diagnostics;
   const columns = result ? columnsFrom(result.records) : [];
   const records = result?.records ?? [];
   const win = useVirtualRows(resultScrollRef, records.length, ROW_HEIGHT);
@@ -596,6 +671,14 @@ export default function QueryRunner() {
               <button className="btn secondary" onClick={saveCurrent}>
                 Save
               </button>
+              <button
+                className="btn secondary"
+                onClick={validate}
+                disabled={validating || !soql.trim()}
+                title="Validate against Salesforce without running (Query Explain)"
+              >
+                {validating ? "Checking…" : "Check ✓"}
+              </button>
               <button className="btn" onClick={run} disabled={loading}>
                 {loading ? "Running…" : "Run ▶"}
               </button>
@@ -618,7 +701,7 @@ export default function QueryRunner() {
                 ref={lintPreRef}
                 aria-hidden="true"
                 dangerouslySetInnerHTML={{
-                  __html: buildLintOverlay(soql, diagnostics),
+                  __html: buildLintOverlay(soql, allDiagnostics),
                 }}
               />
               <textarea
@@ -632,6 +715,9 @@ export default function QueryRunner() {
                 onChange={(e) => {
                   setSoql(e.target.value);
                   void refreshAc();
+                  // Server validation result is stale the moment the text changes.
+                  if (serverDiag) setServerDiag(null);
+                  if (serverValid) setServerValid(false);
                 }}
                 onKeyDown={onKeyDown}
                 onKeyUp={onKeyUp}
@@ -692,9 +778,15 @@ export default function QueryRunner() {
             </div>
           </div>
 
-          {diagnostics.length > 0 && (
+          {(allDiagnostics.length > 0 || serverValid) && (
             <div className="sqled-problems" role="list">
-              {diagnostics.slice(0, 8).map((d, i) => (
+              {serverValid && allDiagnostics.length === 0 && (
+                <span className="lintmsg valid" role="listitem">
+                  <span aria-hidden="true">✅</span> Valid — Salesforce accepted
+                  this query
+                </span>
+              )}
+              {allDiagnostics.slice(0, 8).map((d, i) => (
                 <button
                   key={`${d.start}-${i}`}
                   type="button"
@@ -712,9 +804,9 @@ export default function QueryRunner() {
                   </span>
                 </button>
               ))}
-              {diagnostics.length > 8 && (
+              {allDiagnostics.length > 8 && (
                 <span className="muted" style={{ fontSize: 12, padding: "2px 6px" }}>
-                  +{diagnostics.length - 8} more
+                  +{allDiagnostics.length - 8} more
                 </span>
               )}
             </div>
