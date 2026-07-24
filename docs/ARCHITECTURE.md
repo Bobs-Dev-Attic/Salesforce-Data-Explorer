@@ -57,10 +57,11 @@ src/lib/
   soqlFormat.ts        SOQL auto-formatter — canonical multi-line reflow (pure)
   fuzzy.ts             Levenshtein / OSA distance + nearest — "did you mean" (pure)
   colLetter.ts         spreadsheet A1 column labels / cell refs (Excel view, pure)
+  gridFilter.ts        client-side Excel-Table AutoFilter: value filters + sort (pure)
   caretCoords.ts       textarea caret pixel position (hidden-mirror) for the popup
 
 Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv,
-soqlComplete, soqlLint, soqlFormat, fuzzy, sfError).
+soqlComplete, soqlLint, soqlFormat, fuzzy, sfError, gridFilter).
 CI: .github/workflows/ci.yml runs typecheck → lint → test → build on PRs.
 
 src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated())

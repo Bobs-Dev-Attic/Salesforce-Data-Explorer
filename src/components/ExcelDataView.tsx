@@ -6,6 +6,13 @@ import ObjectPicker from "@/components/ObjectPicker";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 import { usePersistentState } from "@/lib/usePersistentState";
+import {
+  applyGridView,
+  distinctValues,
+  type SortSpec,
+  type ValueFilters,
+} from "@/lib/gridFilter";
+import { FunnelIcon } from "@/components/fieldUi";
 
 const XL_ROW_H = 24;
 const XL_MIN_ROW_H = 18;
@@ -170,21 +177,130 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
     };
   }, [panel]);
 
+  // --- Excel-Table AutoFilter (client-side sort + per-column value filter) ---
+  const [sortSpec, setSortSpec] = useState<SortSpec | null>(null);
+  const [valueFilters, setValueFilters] = useState<ValueFilters>({});
+  const [menu, setMenu] = useState<{ col: string; x: number; y: number } | null>(
+    null
+  );
+  const [menuSearch, setMenuSearch] = useState("");
+  const [draft, setDraft] = useState<Set<string>>(new Set());
+
+  // A new result set (different columns) invalidates any prior sort/filter.
+  const colKey = resultColumns.join("");
+  useEffect(() => {
+    setSortSpec(null);
+    setValueFilters({});
+    setSel(null);
+    setMenu(null);
+  }, [colKey]);
+
+  const displayRows = useMemo(
+    () => applyGridView(rows, resultColumns, valueFilters, sortSpec),
+    [rows, resultColumns, valueFilters, sortSpec]
+  );
+  const isFiltered = displayRows.length !== rows.length;
+
+  // Distinct values of the open menu's column (for the checkbox list).
+  const menuValues = useMemo(
+    () => (menu ? distinctValues(rows, menu.col) : []),
+    [menu, rows]
+  );
+  const visibleValues = useMemo(() => {
+    const q = menuSearch.trim().toLowerCase();
+    if (!q) return menuValues;
+    return menuValues.filter((v) => v.toLowerCase().includes(q));
+  }, [menuValues, menuSearch]);
+  const allVisibleChecked =
+    visibleValues.length > 0 && visibleValues.every((v) => draft.has(v));
+
+  function openMenu(col: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const cur = valueFilters[col];
+    setMenuSearch("");
+    setDraft(new Set(cur ?? distinctValues(rows, col)));
+    const x = Math.max(4, Math.min(rect.left, window.innerWidth - 240));
+    setMenu({ col, x, y: rect.bottom });
+  }
+  function applySort(col: string, dir: "asc" | "desc") {
+    setSortSpec({ col, dir });
+    setMenu(null);
+  }
+  function toggleDraft(v: string) {
+    setDraft((d) => {
+      const n = new Set(d);
+      if (n.has(v)) n.delete(v);
+      else n.add(v);
+      return n;
+    });
+  }
+  function toggleAllVisible() {
+    setDraft((d) => {
+      const n = new Set(d);
+      if (visibleValues.every((v) => n.has(v)))
+        visibleValues.forEach((v) => n.delete(v));
+      else visibleValues.forEach((v) => n.add(v));
+      return n;
+    });
+  }
+  function applyFilter() {
+    if (!menu) return;
+    const all = menuValues.length === draft.size && menuValues.every((v) => draft.has(v));
+    setValueFilters((f) => {
+      const n = { ...f };
+      if (all) delete n[menu.col];
+      else n[menu.col] = Array.from(draft);
+      return n;
+    });
+    setMenu(null);
+  }
+  function clearFilter(col: string) {
+    setValueFilters((f) => {
+      const n = { ...f };
+      delete n[col];
+      return n;
+    });
+    setMenu(null);
+  }
+
+  // Close the header menu on outside click / Escape / grid scroll.
+  useEffect(() => {
+    if (!menu) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenu(null);
+    }
+    function onDown(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (!t.closest(".xl-hmenu") && !t.closest(".xl-fh-menu")) setMenu(null);
+    }
+    const grid = gridRef.current;
+    const close = () => setMenu(null);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    grid?.addEventListener("scroll", close, { passive: true });
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+      grid?.removeEventListener("scroll", close);
+    };
+  }, [menu]);
+
   // Wrapped cells have content-driven heights, which the fixed-height
   // virtualizer can't measure — render every row directly in wrap mode.
-  const win = useVirtualRows(gridRef, wrap ? 0 : rows.length, rowH);
+  const win = useVirtualRows(gridRef, wrap ? 0 : displayRows.length, rowH);
   const start = wrap ? 0 : win.start;
-  const end = wrap ? rows.length : win.end;
+  const end = wrap ? displayRows.length : win.end;
   const tableWidth = GUTTER_W + colw.total(resultColumns);
 
-  // Status-bar aggregates for the selected column.
+  // Status-bar aggregates for the selected column (over the filtered view).
   const stats = useMemo(() => {
     if (!sel || !resultColumns.length) return null;
     const col = resultColumns[sel.c];
     let count = 0;
     let numeric = 0;
     let sum = 0;
-    for (const r of rows) {
+    for (const r of displayRows) {
       const v = r[col];
       if (v === undefined || v === "") continue;
       count++;
@@ -196,12 +312,14 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
     }
     const allNumeric = count > 0 && numeric === count;
     return { count, sum, avg: numeric ? sum / numeric : 0, allNumeric };
-  }, [sel, rows, resultColumns]);
+  }, [sel, displayRows, resultColumns]);
 
   const activeCellRef = sel
     ? `${resultColumns[sel.c] ?? ""}:${sel.r + 1}`
     : selectedObject || "—";
-  const formulaText = sel ? rows[sel.r]?.[resultColumns[sel.c]] ?? "" : soql;
+  const formulaText = sel
+    ? displayRows[sel.r]?.[resultColumns[sel.c]] ?? ""
+    : soql;
 
   return (
     <div className="xl">
@@ -583,21 +701,38 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
               {/* Field-name header */}
               <tr className="xl-fields">
                 <th className="xl-rowhead xl-corner" />
-                {resultColumns.map((c, ci) => (
-                  <th
-                    key={c}
-                    className={sel?.c === ci ? "xl-fieldhead hi" : "xl-fieldhead"}
-                    title={c}
-                  >
-                    {c}
-                    <span
-                      className="xl-col-resize"
-                      onPointerDown={(e) => colw.startResize(c, e)}
-                      onClick={(e) => e.stopPropagation()}
-                      title="Drag to resize column"
-                    />
-                  </th>
-                ))}
+                {resultColumns.map((c, ci) => {
+                  const filtered = !!valueFilters[c];
+                  const sorted = sortSpec?.col === c;
+                  return (
+                    <th
+                      key={c}
+                      className={sel?.c === ci ? "xl-fieldhead hi" : "xl-fieldhead"}
+                      title={c}
+                    >
+                      <span className="xl-fh-label">{c}</span>
+                      {sorted && (
+                        <span className="xl-fh-ind" aria-hidden="true">
+                          {sortSpec?.dir === "asc" ? "▲" : "▼"}
+                        </span>
+                      )}
+                      <button
+                        className={`xl-fh-menu${filtered ? " on" : ""}`}
+                        onClick={(e) => openMenu(c, e)}
+                        title="Sort & filter"
+                        aria-label={`Sort and filter ${c}`}
+                      >
+                        {filtered ? <FunnelIcon active /> : "▾"}
+                      </button>
+                      <span
+                        className="xl-col-resize"
+                        onPointerDown={(e) => colw.startResize(c, e)}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Drag to resize column"
+                      />
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -606,7 +741,7 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
                   <td colSpan={resultColumns.length + 1} style={{ padding: 0 }} />
                 </tr>
               )}
-              {rows.slice(start, end).map((r, i) => {
+              {displayRows.slice(start, end).map((r, i) => {
                 const rowIdx = start + i;
                 return (
                   <tr key={rowIdx} style={{ height: rowH }}>
@@ -648,18 +783,79 @@ export default function ExcelDataView(props: ExcelDataViewProps) {
         )}
       </div>
 
-      {/* Sheet tabs */}
-      <div className="xl-sheettabs">
-        <span className="xl-sheet active">Results</span>
-        <span className="xl-sheet add">+</span>
-      </div>
+      {/* Column AutoFilter menu (fixed-position, escapes the scroll clip) */}
+      {menu && (
+        <div className="xl-hmenu" style={{ left: menu.x, top: menu.y }}>
+          <button
+            className="xl-hmenu-item"
+            onClick={() => applySort(menu.col, "asc")}
+          >
+            ▲ Sort A → Z
+          </button>
+          <button
+            className="xl-hmenu-item"
+            onClick={() => applySort(menu.col, "desc")}
+          >
+            ▼ Sort Z → A
+          </button>
+          <div className="xl-hmenu-sep" />
+          <input
+            className="xl-hmenu-search"
+            placeholder="Search values…"
+            value={menuSearch}
+            onChange={(e) => setMenuSearch(e.target.value)}
+            autoFocus
+          />
+          <label className="xl-hmenu-check all">
+            <input
+              type="checkbox"
+              checked={allVisibleChecked}
+              onChange={toggleAllVisible}
+            />
+            <span>(Select All)</span>
+          </label>
+          <div className="xl-hmenu-list">
+            {visibleValues.length === 0 ? (
+              <p className="muted" style={{ margin: "6px 8px" }}>
+                No matching values.
+              </p>
+            ) : (
+              visibleValues.map((v) => (
+                <label key={v} className="xl-hmenu-check">
+                  <input
+                    type="checkbox"
+                    checked={draft.has(v)}
+                    onChange={() => toggleDraft(v)}
+                  />
+                  <span className={v === "" ? "muted" : undefined}>
+                    {v === "" ? "(Blanks)" : v}
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+          <div className="xl-hmenu-actions">
+            <button
+              className="btn secondary"
+              onClick={() => clearFilter(menu.col)}
+            >
+              Clear filter
+            </button>
+            <button className="btn" onClick={applyFilter}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Status bar */}
       <div className="xl-statusbar">
         <span>{running ? "Running…" : "Ready"}</span>
         <span className="xl-status-right">
           {result
-            ? `${rows.length} of ${result.totalSize} record(s)${
+            ? `${displayRows.length}${
+                isFiltered ? ` of ${rows.length} filtered` : ""
+              } · ${rows.length} of ${result.totalSize} record(s)${
                 result.done ? "" : " (truncated)"
               }`
             : "No results yet"}
