@@ -5,6 +5,7 @@ import "./globals.css";
 import { isAuthenticated } from "@/lib/session";
 import GlobalProgress from "@/components/GlobalProgress";
 import ConnectionSwitcher from "@/components/ConnectionSwitcher";
+import PrimaryNav from "@/components/PrimaryNav";
 import AppMenu from "@/components/AppMenu";
 import pkg from "../../package.json";
 
@@ -39,12 +40,7 @@ export default async function RootLayout({
           {authed && (
             <nav className="nav">
               <ConnectionSwitcher />
-              <Link href="/">Home</Link>
-              <Link href="/explorer">Explorer</Link>
-              <Link href="/query">SOQL</Link>
-              <Link href="/objects">Objects</Link>
-              <Link href="/schema">Schema</Link>
-              <Link href="/bulk">Bulk</Link>
+              <PrimaryNav />
               <AppMenu />
             </nav>
           )}

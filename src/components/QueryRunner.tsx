@@ -203,6 +203,7 @@ export default function QueryRunner() {
     left: number;
     tokenStart: number;
     caret: number;
+    navigated: boolean;
   } | null>(null);
 
   // ---- Linter (intellisense Phase 2) ----
@@ -345,6 +346,7 @@ export default function QueryRunner() {
       left: coords.left - ta.scrollLeft,
       tokenStart: ctx.tokenStart,
       caret,
+      navigated: false,
     });
   }, [ensureDescribe]);
 
@@ -562,7 +564,9 @@ export default function QueryRunner() {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setAc((a) =>
-          a ? { ...a, active: (a.active + 1) % a.items.length } : a
+          a
+            ? { ...a, active: (a.active + 1) % a.items.length, navigated: true }
+            : a
         );
         return;
       }
@@ -570,14 +574,30 @@ export default function QueryRunner() {
         e.preventDefault();
         setAc((a) =>
           a
-            ? { ...a, active: (a.active - 1 + a.items.length) % a.items.length }
+            ? {
+                ...a,
+                active: (a.active - 1 + a.items.length) % a.items.length,
+                navigated: true,
+              }
             : a
         );
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
+      // Tab always accepts the highlighted item.
+      if (e.key === "Tab") {
         e.preventDefault();
         acceptSuggestion(ac.items[ac.active]);
+        return;
+      }
+      // Enter accepts only if the user has navigated the list; otherwise it
+      // inserts a newline (so typing + Enter works normally, esp. on mobile).
+      if (e.key === "Enter") {
+        if (ac.navigated) {
+          e.preventDefault();
+          acceptSuggestion(ac.items[ac.active]);
+        } else {
+          closeAc();
+        }
         return;
       }
       if (e.key === "Escape") {

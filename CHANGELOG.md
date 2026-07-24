@@ -3,6 +3,24 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.38.0] - 2026-07-24
+
+### Fixed
+
+- **Mobile responsiveness** — on phones the top navigation (connection pill + six
+  section links + menu) was a single non-wrapping row wider than the viewport,
+  which forced a horizontally-scrollable page; mobile browsers responded by
+  zooming out, cramming all content into a narrow left column with dead space on
+  the right. The section links now **collapse behind a hamburger** (`PrimaryNav`)
+  on ≤ 820 px, the connection pill and brand shrink, the editor toolbar wraps,
+  and `html/body` get `overflow-x: hidden` as a safety net. The page now fills
+  the screen on mobile.
+- **New-line key in the SOQL editor** — when the autocomplete popup was open,
+  Enter always accepted the highlighted suggestion, so it could never insert a
+  line break (especially painful on mobile, where the popup is usually open).
+  Enter now **inserts a newline unless you've navigated the list** with the arrow
+  keys; **Tab** (and click) still accept the suggestion.
+
 ## [0.37.0] - 2026-07-24
 
 ### Added
