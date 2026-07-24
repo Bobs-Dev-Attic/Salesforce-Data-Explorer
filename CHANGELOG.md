@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.43.0] - 2026-07-24
+
+### Added
+
+- **Excel-style Data Explorer view** — a toggle (**▦ Excel view** / **Classic
+  view**) switches the Data Explorer into a Microsoft-Excel-like skin, remembered
+  in localStorage (`sfde.explorer.view`). It reuses all the existing builder
+  logic and just re-presents it:
+  - A green **title/quick-access bar**, a **ribbon** with tabs (**Home / Data /
+    View**) and grouped commands (Run, Export, Copy, Open/Save, Object picker,
+    Columns ▾ and Filter ▾ dropdown panels, Sort / Direction / Limit).
+  - A **formula bar** with a Name Box (shows the active cell's A1 reference, e.g.
+    `C5`) and the generated SOQL (or the selected cell's value).
+  - A **spreadsheet grid**: column-letter header (A, B, C…), a frozen field-name
+    header, row numbers, gridlines, click-to-select cells, and sticky
+    headers/row-gutter. Large results stay virtualized.
+  - **Sheet tabs** and a green **status bar** showing record count and, for a
+    selected column, Count / Sum / Average.
+- New pure helper `src/lib/colLetter.ts` (`colLetter`, `cellRef`; 5 tests) and
+  presentational component `src/components/ExcelDataView.tsx`. Self-contained
+  light skin — no new runtime dependencies; the Classic view is unchanged.
+
 ## [0.42.1] - 2026-07-24
 
 ### Fixed

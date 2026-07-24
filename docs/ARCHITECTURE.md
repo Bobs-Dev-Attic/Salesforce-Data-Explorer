@@ -56,6 +56,7 @@ src/lib/
   soqlLint.ts          SOQL linter — structural + unknown object/field diagnostics (pure)
   soqlFormat.ts        SOQL auto-formatter — canonical multi-line reflow (pure)
   fuzzy.ts             Levenshtein / OSA distance + nearest — "did you mean" (pure)
+  colLetter.ts         spreadsheet A1 column labels / cell refs (Excel view, pure)
   caretCoords.ts       textarea caret pixel position (hidden-mirror) for the popup
 
 Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv,
