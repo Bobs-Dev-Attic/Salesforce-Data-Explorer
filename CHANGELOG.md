@@ -3,6 +3,16 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.40.0] - 2026-07-24
+
+### Added
+
+- **"New" indicator on a just-saved query** — after you save a query in the SOQL
+  Editor, its entry in the **Saved** list flashes a green **New** badge plus a
+  subtle row highlight that **fade out over 60 seconds**, so it's easy to spot
+  which one you just added. Respects `prefers-reduced-motion` (static highlight,
+  no fade) and clears itself after 60s.
+
 ## [0.39.1] - 2026-07-24
 
 ### Changed
