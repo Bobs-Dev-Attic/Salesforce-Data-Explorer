@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.34.0] - 2026-07-24
+
+### Added
+
+- **SOQL autocomplete (intellisense), Phase 1** — the SOQL Editor now pops a
+  context-aware suggestion menu as you type, with no new runtime dependencies:
+  - **Objects** after `FROM` (from the cached global object list).
+  - **Fields** in `SELECT` / `WHERE` / `ORDER BY` / `GROUP BY` (from the object's
+    cached describe), with type + label detail.
+  - **Relationship traversal** — a dotted token (`Account.Nam…`, and multi-hop
+    `Account.Owner.…`) resolves the lookup target via `referenceTo` and suggests
+    that object's fields.
+  - **Picklist values** inside a quoted comparison (`Industry = 'Ban…`, `IN ('…`).
+  - **Keyword** help between clauses.
+  - Keyboard driven: ↑/↓ to move, Enter/Tab to accept, Esc to dismiss; mouse
+    hover/click also work. ⌘/Ctrl+Enter still runs the query. Caret-anchored
+    popup positioned via a hidden-mirror measurement.
+- New pure, unit-tested engine `src/lib/soqlComplete.ts` (context analysis +
+  ranking, 22 tests) and caret helper `src/lib/caretCoords.ts`. Metadata is
+  fetched lazily from the existing describe endpoints and cached per object on
+  the client.
+
 ## [0.33.0] - 2026-07-23
 
 ### Added
