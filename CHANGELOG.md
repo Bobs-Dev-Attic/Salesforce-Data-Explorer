@@ -3,6 +3,28 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.45.0] - 2026-07-24
+
+### Added
+
+- **Excel-Table AutoFilter** on the Excel-view grid. Each column header now has a
+  **▾ menu button** with:
+  - **Sort A → Z / Z → A** for that column (numeric columns sort numerically).
+  - A **search box** to narrow the value list.
+  - A **checkbox list of the distinct values** in the column (with **(Select
+    All)** and a **(Blanks)** entry), so you can pick exactly which values to
+    keep — then **OK** to apply or **Clear filter** to remove it.
+  - Filtered columns show a filled **funnel** icon; the sorted column shows a
+    ▲/▼ arrow. Filtering/sorting is client-side over the loaded rows (no re-query)
+    and resets when you run a query with a different set of columns.
+  - The status bar now reports the filtered count (e.g. `12 of 200 filtered`).
+- New pure, tested helper `src/lib/gridFilter.ts` (`compareValues`,
+  `distinctValues`, `applyGridView`; 11 tests).
+
+### Removed
+
+- The Excel view's **"Results" sheet-tab row** at the bottom of the grid.
+
 ## [0.44.0] - 2026-07-24
 
 ### Changed

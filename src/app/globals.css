@@ -1794,6 +1794,115 @@ table.xl-grid {
   border-color: var(--xl-green);
   color: var(--xl-green-dark);
 }
+/* Field header: label + sort indicator + AutoFilter menu button */
+.xl-fieldhead {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding-right: 9px;
+}
+.xl-fh-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.xl-fh-ind {
+  flex: none;
+  font-size: 9px;
+  color: var(--xl-green-dark);
+}
+.xl-fh-menu {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--xl-green-dark);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+.xl-fh-menu:hover {
+  background: #c8e6d3;
+}
+.xl-fh-menu.on {
+  color: var(--accent);
+}
+/* AutoFilter dropdown (fixed-position, viewport-anchored) */
+.xl-hmenu {
+  position: fixed;
+  z-index: 50;
+  width: 232px;
+  padding: 4px;
+  background: #fff;
+  color: #201f1e;
+  border: 1px solid var(--xl-line);
+  border-radius: 4px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+}
+.xl-hmenu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #201f1e;
+  cursor: pointer;
+}
+.xl-hmenu-item:hover {
+  background: #eaf5ee;
+}
+.xl-hmenu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--xl-line);
+}
+.xl-hmenu-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+.xl-hmenu-list {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--xl-line);
+  border-radius: 3px;
+  padding: 2px;
+}
+.xl-hmenu-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.xl-hmenu-check span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.xl-hmenu-check:hover {
+  background: #eaf5ee;
+}
+.xl-hmenu-check.all {
+  font-weight: 600;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--xl-line);
+}
+.xl-hmenu-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
 /* Sheet tabs */
 .xl-sheettabs {
   display: flex;
