@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState, readPersisted } from "@/lib/usePersistentState";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 
 interface GlobalObject {
@@ -68,6 +69,7 @@ export default function ObjectExplorer() {
     "sfde.objects.sortMode",
     "name"
   );
+  const colw = useColumnWidths("sfde.objects.colwidths", { defaultWidth: 200 });
 
   const loadCounts = async (refresh = false) => {
     setCountsLoading(true);
@@ -497,7 +499,17 @@ export default function ObjectExplorer() {
                 className="table-wrap"
                 style={{ maxHeight: 520, overflowY: "auto" }}
               >
-                <table>
+                <table
+                  className="rz-table"
+                  style={{
+                    width: colw.total(["label", "name", "type", "details"]),
+                  }}
+                >
+                  <colgroup>
+                    {["label", "name", "type", "details"].map((k) => (
+                      <col key={k} style={{ width: colw.widthOf(k) }} />
+                    ))}
+                  </colgroup>
                   <thead>
                     <tr>
                       {(
@@ -521,6 +533,11 @@ export default function ObjectExplorer() {
                                 : " ▼"
                               : ""}
                           </span>
+                          <span
+                            className="col-resize"
+                            onPointerDown={(e) => colw.startResize(key, e)}
+                            title="Drag to resize column"
+                          />
                           <button
                             className={`funnel-btn${
                               colFilters[key] ? " active" : ""

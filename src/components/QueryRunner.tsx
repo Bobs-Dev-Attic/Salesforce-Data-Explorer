@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePersistentState } from "@/lib/usePersistentState";
 import { useVirtualRows } from "@/lib/useVirtualRows";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
 import ErrorNotice from "@/components/ErrorNotice";
 import {
@@ -139,6 +140,7 @@ interface SavedQuery {
   id: string;
   name: string;
   soql: string;
+  builder_state?: { colWidths?: Record<string, number> } | null;
 }
 
 const TEMPLATES: { label: string; soql: string }[] = [
@@ -599,7 +601,11 @@ export default function QueryRunner() {
       const res = await fetch("/api/salesforce/saved-queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), soql }),
+        body: JSON.stringify({
+          name: name.trim(),
+          soql,
+          builderState: { colWidths: colw.widths },
+        }),
       });
       const data = await res.json();
       if (!res.ok) setError(data.error || "Failed to save");
@@ -714,6 +720,7 @@ export default function QueryRunner() {
   const columns = result ? columnsFrom(result.records) : [];
   const records = result?.records ?? [];
   const win = useVirtualRows(resultScrollRef, records.length, ROW_HEIGHT);
+  const colw = useColumnWidths("sfde.soql.colwidths");
 
   return (
     <div>
@@ -747,7 +754,11 @@ export default function QueryRunner() {
             <div
               key={q.id}
               className={`sqled-item${q.id === justSavedId ? " just-saved" : ""}`}
-              onClick={() => setSoql(q.soql)}
+              onClick={() => {
+                setSoql(q.soql);
+                if (q.builder_state?.colWidths)
+                  colw.setWidths(q.builder_state.colWidths);
+              }}
               title={q.soql}
             >
               <span
@@ -1010,11 +1021,23 @@ export default function QueryRunner() {
                 ref={resultScrollRef}
                 style={{ maxHeight: 460, overflowY: "auto", border: "none" }}
               >
-                <table>
+                <table className="rz-table" style={{ width: colw.total(columns) }}>
+                  <colgroup>
+                    {columns.map((c) => (
+                      <col key={c} style={{ width: colw.widthOf(c) }} />
+                    ))}
+                  </colgroup>
                   <thead>
                     <tr>
                       {columns.map((c) => (
-                        <th key={c}>{c}</th>
+                        <th key={c} style={{ position: "relative" }}>
+                          {c}
+                          <span
+                            className="col-resize"
+                            onPointerDown={(e) => colw.startResize(c, e)}
+                            title="Drag to resize column"
+                          />
+                        </th>
                       ))}
                     </tr>
                   </thead>

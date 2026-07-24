@@ -392,6 +392,49 @@ label {
   border-radius: 8px;
 }
 
+/* Resizable-column tables: fixed layout so <colgroup> widths are honored. */
+table.rz-table {
+  table-layout: fixed;
+}
+/* Clip data cells to the column width (ellipsis). Header cells stay
+   overflow-visible so the filter flyout / resize handle aren't clipped. */
+table.rz-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+table.rz-table th {
+  white-space: nowrap;
+}
+/* Drag handle on the right edge of each header cell. */
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  z-index: 2;
+}
+.col-resize::after {
+  content: "";
+  position: absolute;
+  top: 20%;
+  right: 3px;
+  height: 60%;
+  border-right: 2px solid var(--border);
+}
+.col-resize:hover::after {
+  border-right-color: var(--accent);
+}
+/* While dragging, suppress text selection and show the resize cursor globally. */
+body.col-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
 /* Wrapping button group used in table action cells */
 .actions {
   display: flex;

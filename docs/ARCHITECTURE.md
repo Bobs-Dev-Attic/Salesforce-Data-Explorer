@@ -50,6 +50,7 @@ src/lib/
   rateLimit.ts         in-memory per-IP login limiter (lockout)
   usePersistentState.ts localStorage-backed useState hook
   useVirtualRows.ts    row windowing for large result grids
+  useColumnWidths.ts   drag-to-resize column widths, persisted (localStorage)
   useFocusTrap.ts      modal focus trap + Escape + focus restore
   soqlComplete.ts      SOQL autocomplete engine — context analysis + ranking (pure)
   soqlLint.ts          SOQL linter — structural + unknown object/field diagnostics (pure)

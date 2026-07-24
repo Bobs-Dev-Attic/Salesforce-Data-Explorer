@@ -3,6 +3,24 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.41.0] - 2026-07-24
+
+### Added
+
+- **Resizable result-table columns** on the Data Explorer, SOQL Editor, and
+  Object Explorer. Drag the handle on a column header's right edge to set its
+  width; widths are keyed by column name and **persisted to localStorage** per
+  surface (`sfde.soql.colwidths`, `sfde.explorer.colwidths`,
+  `sfde.objects.colwidths`), so they survive reloads.
+  - Widths are also **saved into Saved queries** — when you save a SOQL Editor
+    or Data Explorer query, its current column widths ride along in the query's
+    `builder_state` and are restored when you reload it.
+  - Tables use `table-layout: fixed` with a `<colgroup>`; data cells clip with
+    an ellipsis, while headers stay overflow-visible so the sort/filter
+    controls and the resize handle aren't clipped.
+- New pure-helper hook `src/lib/useColumnWidths.ts` (`nextWidth`, `totalWidth`,
+  drag-to-resize via pointer events; 6 tests).
+
 ## [0.40.0] - 2026-07-24
 
 ### Added
