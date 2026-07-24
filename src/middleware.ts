@@ -37,6 +37,12 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  // Never let the browser serve a cached HTML shell: a stale document points at
+  // a previous deploy's asset chunks, so a plain refresh shows the old version.
+  // This matcher only runs on page documents (API + hashed /_next/static assets
+  // are excluded), so immutable asset caching is untouched. no-store also means
+  // authed page HTML isn't retained after logout.
+  response.headers.set("Cache-Control", "no-store, must-revalidate");
   return response;
 }
 

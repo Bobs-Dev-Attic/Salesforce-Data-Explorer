@@ -3,6 +3,17 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.42.1] - 2026-07-24
+
+### Fixed
+
+- **Stale page after deploy** — the middleware now sends
+  `Cache-Control: no-store, must-revalidate` on page documents, so a browser
+  refresh always fetches the current deploy instead of a cached HTML shell that
+  points at old asset chunks. Scoped to the middleware matcher (page documents
+  only); hashed `/_next/static` assets keep their immutable caching. As a bonus,
+  authed page HTML is no longer retained in the browser cache after logout.
+
 ## [0.42.0] - 2026-07-24
 
 ### Changed
