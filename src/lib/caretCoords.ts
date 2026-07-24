@@ -33,11 +33,14 @@ export function caretCoordinates(
     "borderBottomWidth",
     "borderLeftWidth",
     "tabSize",
+    "overflowWrap",
+    "wordBreak",
   ] as const;
 
   style.position = "absolute";
   style.visibility = "hidden";
-  style.whiteSpace = "pre"; // matches the editor (no soft wrapping)
+  // Match the editor's wrap mode ("pre" normally, "pre-wrap" when wrapping).
+  style.whiteSpace = cs.whiteSpace || "pre";
   style.overflow = "hidden";
   for (const p of props) {
     style[p] = cs[p];

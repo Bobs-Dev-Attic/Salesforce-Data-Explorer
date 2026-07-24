@@ -3,6 +3,30 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.37.0] - 2026-07-24
+
+### Added
+
+- **Auto-format** — a **Format** button in the SOQL Editor reflows the query
+  into a canonical multi-line layout: each top-level clause on its own line, the
+  `SELECT` field list one field per indented line, and top-level `AND`/`OR` in
+  `WHERE` broken onto indented lines. Pure engine `src/lib/soqlFormat.ts` (9
+  tests) — it only moves whitespace and uppercases the structural keywords it
+  anchors on; it never rewrites operators, field names, or string literals, and
+  leaves parenthesised subqueries on one line (idempotent; non-SELECT input is
+  returned untouched).
+- **Line-wrap toggle** — a **Wrap** checkbox soft-wraps long lines in the editor
+  (the line-number gutter hides while wrapped, since per-line numbering can't
+  stay aligned across wrapped rows). Off by default; the choice is remembered.
+
+### Changed
+
+- **Autocomplete now debounced** — the suggestion popup appears after a short
+  (~130 ms) pause instead of on every keystroke, and a **stale-caret guard**
+  suppresses a popup whose anchor no longer matches the caret (e.g. the caret
+  moved while describe metadata was still loading). The caret-position helper
+  (`caretCoords.ts`) now honors the editor's wrap mode.
+
 ## [0.36.0] - 2026-07-24
 
 ### Added

@@ -20,6 +20,7 @@ import {
   type ObjectMeta,
 } from "@/lib/soqlComplete";
 import { lintSoql, type Diagnostic } from "@/lib/soqlLint";
+import { formatSoql } from "@/lib/soqlFormat";
 
 const ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
 
@@ -174,6 +175,7 @@ const DEFAULT_QUERY = "SELECT Id, Name FROM Account ORDER BY CreatedDate DESC LI
 export default function QueryRunner() {
   const [soql, setSoql] = usePersistentState("sfde.soql.text", DEFAULT_QUERY);
   const [limit, setLimit] = usePersistentState("sfde.soql.limit", 200);
+  const [wrap, setWrap] = usePersistentState("sfde.soql.wrap", false);
   const [result, setResult] = useState<SoqlResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -192,6 +194,7 @@ export default function QueryRunner() {
   const objectsRef = useRef<ObjectMeta[]>([]);
   const describeCacheRef = useRef<Map<string, FieldMeta[]>>(new Map());
   const acReqRef = useRef(0);
+  const acTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const acListRef = useRef<HTMLUListElement>(null);
   const [ac, setAc] = useState<{
     items: Suggestion[];
@@ -331,6 +334,9 @@ export default function QueryRunner() {
       setAc(null);
       return;
     }
+    // Guard against a stale caret: if the selection moved while metadata was
+    // being fetched, don't pop a menu anchored to where the caret used to be.
+    if ((ta.selectionStart ?? 0) !== caret) return;
     const coords = caretCoordinates(ta, ctx.tokenStart);
     setAc({
       items,
@@ -341,6 +347,17 @@ export default function QueryRunner() {
       caret,
     });
   }, [ensureDescribe]);
+
+  // Debounce the popup so it appears after a brief pause, not on every keystroke.
+  const closeAc = useCallback(() => {
+    if (acTimerRef.current) clearTimeout(acTimerRef.current);
+    setAc(null);
+  }, []);
+
+  const scheduleAc = useCallback(() => {
+    if (acTimerRef.current) clearTimeout(acTimerRef.current);
+    acTimerRef.current = setTimeout(() => void refreshAc(), 130);
+  }, [refreshAc]);
 
   const acceptSuggestion = useCallback(
     (s: Suggestion) => {
@@ -399,6 +416,14 @@ export default function QueryRunner() {
       if (lintTimerRef.current) clearTimeout(lintTimerRef.current);
     };
   }, [soql, scheduleLint]);
+
+  // Clear any pending autocomplete timer on unmount.
+  useEffect(
+    () => () => {
+      if (acTimerRef.current) clearTimeout(acTimerRef.current);
+    },
+    []
+  );
 
   function jumpTo(d: Diagnostic) {
     const ta = taRef.current;
@@ -529,7 +554,7 @@ export default function QueryRunner() {
     // Run always wins, even with the autocomplete menu open.
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      setAc(null);
+      closeAc();
       run();
       return;
     }
@@ -557,7 +582,7 @@ export default function QueryRunner() {
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setAc(null);
+        closeAc();
         return;
       }
     }
@@ -570,7 +595,20 @@ export default function QueryRunner() {
     const navKeys = ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"];
     if (ac && navKeys.includes(e.key)) return;
     if (["Shift", "Control", "Meta", "Alt"].includes(e.key)) return;
-    void refreshAc();
+    scheduleAc();
+  }
+
+  function formatCurrent() {
+    const formatted = formatSoql(soql);
+    closeAc();
+    if (formatted && formatted !== soql) setSoql(formatted);
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(formatted.length, formatted.length);
+      }
+    });
   }
 
   const lineCount = Math.max(soql.split("\n").length, 1);
@@ -668,6 +706,25 @@ export default function QueryRunner() {
               </select>
             </div>
             <div className="row" style={{ gap: 8 }}>
+              <label
+                className="sqled-wrap-toggle"
+                title="Soft-wrap long lines in the editor"
+              >
+                <input
+                  type="checkbox"
+                  checked={wrap}
+                  onChange={(e) => setWrap(e.target.checked)}
+                />
+                Wrap
+              </label>
+              <button
+                className="btn secondary"
+                onClick={formatCurrent}
+                disabled={!soql.trim()}
+                title="Auto-format: reflow into canonical multi-line SOQL"
+              >
+                Format
+              </button>
               <button className="btn secondary" onClick={saveCurrent}>
                 Save
               </button>
@@ -685,7 +742,7 @@ export default function QueryRunner() {
             </div>
           </div>
 
-          <div className="sqled-editor">
+          <div className={`sqled-editor${wrap ? " wrap" : ""}`}>
             <div className="sqled-gutter" ref={gutterRef}>
               {gutter}
             </div>
@@ -714,7 +771,7 @@ export default function QueryRunner() {
                 autoCapitalize="off"
                 onChange={(e) => {
                   setSoql(e.target.value);
-                  void refreshAc();
+                  scheduleAc();
                   // Server validation result is stale the moment the text changes.
                   if (serverDiag) setServerDiag(null);
                   if (serverValid) setServerValid(false);
@@ -722,10 +779,10 @@ export default function QueryRunner() {
                 onKeyDown={onKeyDown}
                 onKeyUp={onKeyUp}
                 onClick={() => {
-                  void refreshAc();
+                  scheduleAc();
                   scheduleLint();
                 }}
-                onBlur={() => setAc(null)}
+                onBlur={() => closeAc()}
                 onScroll={(e) => {
                   const t = e.currentTarget;
                   if (gutterRef.current) gutterRef.current.scrollTop = t.scrollTop;
@@ -737,7 +794,7 @@ export default function QueryRunner() {
                     lintPreRef.current.scrollTop = t.scrollTop;
                     lintPreRef.current.scrollLeft = t.scrollLeft;
                   }
-                  if (ac) setAc(null);
+                  if (ac) closeAc();
                 }}
                 placeholder="Write SOQL, then press Run (⌘/Ctrl+Enter)…"
                 role="combobox"
