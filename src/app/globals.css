@@ -461,6 +461,54 @@ td.actions-cell {
 .sqled-textarea::placeholder {
   color: var(--muted);
 }
+/* Autocomplete (intellisense) popup */
+.ac-menu {
+  position: absolute;
+  z-index: 5;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.ac-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ac-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+.ac-item .ac-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-item .ac-detail {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+.ac-item.active .ac-detail {
+  color: rgba(255, 255, 255, 0.85);
+}
 .tok-kw {
   color: var(--editor-tok-kw);
   font-weight: 600;

@@ -6,6 +6,18 @@ import { useVirtualRows } from "@/lib/useVirtualRows";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
 import ErrorNotice from "@/components/ErrorNotice";
 import { friendlyError } from "@/lib/sfError";
+import { caretCoordinates } from "@/lib/caretCoords";
+import {
+  analyzeSoql,
+  objectSuggestions,
+  fieldSuggestions,
+  keywordSuggestions,
+  picklistSuggestions,
+  resolveRelationship,
+  type Suggestion,
+  type FieldMeta,
+  type ObjectMeta,
+} from "@/lib/soqlComplete";
 
 const ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
 
@@ -114,6 +126,20 @@ export default function QueryRunner() {
   const preRef = useRef<HTMLPreElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
 
+  // ---- Autocomplete (intellisense) ----
+  const objectsRef = useRef<ObjectMeta[]>([]);
+  const describeCacheRef = useRef<Map<string, FieldMeta[]>>(new Map());
+  const acReqRef = useRef(0);
+  const acListRef = useRef<HTMLUListElement>(null);
+  const [ac, setAc] = useState<{
+    items: Suggestion[];
+    active: number;
+    top: number;
+    left: number;
+    tokenStart: number;
+    caret: number;
+  } | null>(null);
+
   const loadSaved = useCallback(async () => {
     try {
       const res = await fetch("/api/salesforce/saved-queries");
@@ -130,6 +156,144 @@ export default function QueryRunner() {
   useEffect(() => {
     loadSaved();
   }, [loadSaved]);
+
+  // Load the global object list once for FROM-clause autocomplete.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/salesforce/objects")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && Array.isArray(d?.objects)) objectsRef.current = d.objects;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const ensureDescribe = useCallback(
+    async (name: string): Promise<FieldMeta[]> => {
+      const key = name.toLowerCase();
+      const cached = describeCacheRef.current.get(key);
+      if (cached) return cached;
+      try {
+        const res = await fetch(
+          `/api/salesforce/objects/${encodeURIComponent(name)}`
+        );
+        if (!res.ok) {
+          describeCacheRef.current.set(key, []);
+          return [];
+        }
+        const d = await res.json();
+        const fields: FieldMeta[] = Array.isArray(d.fields)
+          ? d.fields.map(
+              (f: {
+                name: string;
+                label: string;
+                type?: string;
+                relationshipName?: string | null;
+                referenceTo?: string[] | null;
+                picklistValues?: {
+                  value: string;
+                  label?: string;
+                  active?: boolean;
+                }[];
+              }) => ({
+                name: f.name,
+                label: f.label,
+                type: f.type,
+                relationshipName: f.relationshipName,
+                referenceTo: f.referenceTo,
+                picklistValues: f.picklistValues,
+              })
+            )
+          : [];
+        describeCacheRef.current.set(key, fields);
+        return fields;
+      } catch {
+        describeCacheRef.current.set(key, []);
+        return [];
+      }
+    },
+    []
+  );
+
+  const refreshAc = useCallback(async () => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const caret = ta.selectionStart ?? 0;
+    const ctx = analyzeSoql(ta.value, caret);
+    if (!ctx) {
+      setAc(null);
+      return;
+    }
+    const reqId = ++acReqRef.current;
+    let items: Suggestion[] = [];
+    if (ctx.kind === "object") {
+      items = objectSuggestions(objectsRef.current, ctx.token);
+    } else if (ctx.kind === "keyword") {
+      items = keywordSuggestions(ctx.token);
+    } else if (ctx.kind === "field" && ctx.fromObject) {
+      items = fieldSuggestions(await ensureDescribe(ctx.fromObject), ctx.token);
+    } else if (ctx.kind === "relationship" && ctx.fromObject) {
+      let fields = await ensureDescribe(ctx.fromObject);
+      let ok = true;
+      for (const seg of ctx.relationshipPath) {
+        const target = resolveRelationship(fields, seg);
+        if (!target) {
+          ok = false;
+          break;
+        }
+        fields = await ensureDescribe(target);
+      }
+      items = ok ? fieldSuggestions(fields, ctx.token) : [];
+    } else if (ctx.kind === "picklist" && ctx.fromObject) {
+      const fields = await ensureDescribe(ctx.fromObject);
+      const f = fields.find(
+        (x) => x.name.toLowerCase() === ctx.fieldForPicklist?.toLowerCase()
+      );
+      items = picklistSuggestions(f, ctx.token);
+    }
+    if (reqId !== acReqRef.current) return; // a newer request superseded this
+    if (items.length === 0) {
+      setAc(null);
+      return;
+    }
+    const coords = caretCoordinates(ta, ctx.tokenStart);
+    setAc({
+      items,
+      active: 0,
+      top: coords.top - ta.scrollTop + coords.height,
+      left: coords.left - ta.scrollLeft,
+      tokenStart: ctx.tokenStart,
+      caret,
+    });
+  }, [ensureDescribe]);
+
+  const acceptSuggestion = useCallback(
+    (s: Suggestion) => {
+      const ta = taRef.current;
+      if (!ta || !ac) return;
+      const next = soql.slice(0, ac.tokenStart) + s.value + soql.slice(ac.caret);
+      const pos = ac.tokenStart + s.value.length;
+      setSoql(next);
+      setAc(null);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(pos, pos);
+      });
+    },
+    [ac, soql, setSoql]
+  );
+
+  // Keep the highlighted active option scrolled into view.
+  useEffect(() => {
+    if (!ac || !acListRef.current) return;
+    const node = acListRef.current.children[ac.active] as
+      | HTMLElement
+      | undefined;
+    node?.scrollIntoView({ block: "nearest" });
+  }, [ac]);
 
   const run = useCallback(async () => {
     setLoading(true);
@@ -215,10 +379,48 @@ export default function QueryRunner() {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Run always wins, even with the autocomplete menu open.
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
+      setAc(null);
       run();
+      return;
     }
+    if (ac) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAc((a) =>
+          a ? { ...a, active: (a.active + 1) % a.items.length } : a
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAc((a) =>
+          a
+            ? { ...a, active: (a.active - 1 + a.items.length) % a.items.length }
+            : a
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        acceptSuggestion(ac.items[ac.active]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setAc(null);
+        return;
+      }
+    }
+  }
+
+  function onKeyUp(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const navKeys = ["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"];
+    if (ac && navKeys.includes(e.key)) return;
+    if (["Shift", "Control", "Meta", "Alt"].includes(e.key)) return;
+    void refreshAc();
   }
 
   const lineCount = Math.max(soql.split("\n").length, 1);
@@ -340,8 +542,17 @@ export default function QueryRunner() {
                 className="sqled-textarea"
                 value={soql}
                 spellCheck={false}
-                onChange={(e) => setSoql(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                onChange={(e) => {
+                  setSoql(e.target.value);
+                  void refreshAc();
+                }}
                 onKeyDown={onKeyDown}
+                onKeyUp={onKeyUp}
+                onClick={() => void refreshAc()}
+                onBlur={() => setAc(null)}
                 onScroll={(e) => {
                   const t = e.currentTarget;
                   if (gutterRef.current) gutterRef.current.scrollTop = t.scrollTop;
@@ -349,9 +560,44 @@ export default function QueryRunner() {
                     preRef.current.scrollTop = t.scrollTop;
                     preRef.current.scrollLeft = t.scrollLeft;
                   }
+                  if (ac) setAc(null);
                 }}
                 placeholder="Write SOQL, then press Run (⌘/Ctrl+Enter)…"
+                role="combobox"
+                aria-expanded={ac ? true : false}
+                aria-controls="soql-ac-list"
+                aria-autocomplete="list"
               />
+              {ac && (
+                <ul
+                  className="ac-menu"
+                  id="soql-ac-list"
+                  ref={acListRef}
+                  role="listbox"
+                  style={{ top: ac.top, left: ac.left }}
+                >
+                  {ac.items.map((it, i) => (
+                    <li
+                      key={it.value + i}
+                      role="option"
+                      aria-selected={i === ac.active}
+                      className={`ac-item${i === ac.active ? " active" : ""}`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        acceptSuggestion(it);
+                      }}
+                      onMouseEnter={() =>
+                        setAc((a) => (a ? { ...a, active: i } : a))
+                      }
+                    >
+                      <span className="ac-val">{it.label ?? it.value}</span>
+                      {it.detail && (
+                        <span className="ac-detail">{it.detail}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 
