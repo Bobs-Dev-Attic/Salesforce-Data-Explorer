@@ -3,6 +3,18 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.46.0] - 2026-07-24
+
+### Changed
+
+- **Excel view now fills the whole viewport** (full width and height), like a
+  real spreadsheet window, instead of sitting inside the page's centered
+  ~1100px column with a fixed-height grid. The title bar, ribbon, and formula
+  bar keep their natural height while the **grid grows to fill the remaining
+  screen height**; body scroll is locked while the view is open. Any error
+  notice stays visible inside the view. **Classic view** exits back to the
+  normal page as before.
+
 ## [0.45.0] - 2026-07-24
 
 ### Added

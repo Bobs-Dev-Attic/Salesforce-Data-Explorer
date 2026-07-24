@@ -887,9 +887,10 @@ export default function DataExplorer() {
 
   return (
     <div>
-      {error && <ErrorNotice error={error} />}
+      {error && viewMode !== "excel" && <ErrorNotice error={error} />}
       {viewMode === "excel" ? (
         <ExcelDataView
+          errorSlot={error ? <ErrorNotice error={error} /> : null}
           objects={objects}
           objectsLoading={objectsLoading}
           selectedObject={selectedObject}
