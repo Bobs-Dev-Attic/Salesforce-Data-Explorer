@@ -515,6 +515,33 @@ td.actions-cell {
 .sqled-textarea::placeholder {
   color: var(--muted);
 }
+/* Wrap mode: soft-wrap long lines. The gutter is hidden because per-logical-line
+   numbering can't stay aligned once lines wrap to multiple visual rows. */
+.sqled-editor.wrap .sqled-gutter {
+  display: none;
+}
+.sqled-editor.wrap .sqled-highlight,
+.sqled-editor.wrap .sqled-lint,
+.sqled-editor.wrap .sqled-textarea {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.sqled-editor.wrap .sqled-textarea {
+  overflow-x: hidden;
+}
+.sqled-wrap-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.sqled-wrap-toggle input {
+  cursor: pointer;
+}
 /* Autocomplete (intellisense) popup */
 .ac-menu {
   position: absolute;
