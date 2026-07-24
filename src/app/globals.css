@@ -686,6 +686,12 @@ td.actions-cell {
 .ac-item.active .ac-detail {
   color: rgba(255, 255, 255, 0.85);
 }
+/* On phones the popup is cramped — show just the name, drop type/label. */
+@media (max-width: 820px) {
+  .ac-item .ac-detail {
+    display: none;
+  }
+}
 .tok-kw {
   color: var(--editor-tok-kw);
   font-weight: 600;

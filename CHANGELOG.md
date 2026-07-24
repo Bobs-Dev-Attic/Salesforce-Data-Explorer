@@ -3,6 +3,15 @@
 All notable changes to Salesforce Data Explorer are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.39.1] - 2026-07-24
+
+### Changed
+
+- **Autocomplete on mobile** — the suggestion popup now shows just the
+  field/object name on narrow screens (≤ 820 px); the type + label detail
+  (e.g. "string · Account Number") is hidden there to avoid a cramped, wrapped
+  row. Wider screens keep the full detail.
+
 ## [0.39.0] - 2026-07-24
 
 ### Added
