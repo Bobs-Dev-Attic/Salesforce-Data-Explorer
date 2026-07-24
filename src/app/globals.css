@@ -569,6 +569,32 @@ td.actions-cell {
   border-left: 3px solid var(--ok);
   cursor: default;
 }
+.sqled-problems .lintmsg-group {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+}
+.sqled-problems .lintmsg-group .lintmsg {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.sqled-problems .lintfix {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-left: none;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.sqled-problems .lintfix:hover {
+  filter: brightness(1.08);
+}
 .sqled-textarea {
   position: absolute;
   inset: 0;

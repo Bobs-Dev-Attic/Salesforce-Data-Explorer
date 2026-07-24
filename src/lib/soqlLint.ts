@@ -15,7 +15,17 @@
  * Phase 3 (server-side Query Explain).
  */
 
+import { nearest, distanceBudget } from "./fuzzy";
+
 export type Severity = "error" | "warning";
+
+/** A one-click edit that resolves a diagnostic. */
+export interface Fix {
+  start: number;
+  end: number;
+  replacement: string;
+  label: string;
+}
 
 export interface Diagnostic {
   start: number;
@@ -24,6 +34,8 @@ export interface Diagnostic {
   col: number; // 1-based
   message: string;
   severity: Severity;
+  /** Optional quick-fix the editor can apply. */
+  fix?: Fix;
 }
 
 export interface LintMeta {
@@ -31,6 +43,8 @@ export interface LintMeta {
   objects?: Set<string> | null;
   /** Lowercased set of the FROM object's field names, or null if unknown. */
   fields?: Set<string> | null;
+  /** Original-case field names, for "did you mean…" suggestions. */
+  fieldList?: string[] | null;
 }
 
 // Words that are valid in field clauses but are not fields.
@@ -262,17 +276,134 @@ export function lintSoql(
       if (underCaret(start, end)) continue;
 
       if (!meta.fields.has(word.toLowerCase())) {
+        const guess = meta.fieldList
+          ? nearest(word, meta.fieldList, distanceBudget(word))
+          : null;
         diagnostics.push({
           start,
           end,
           ...locate(start, lineStarts),
-          message: `Unknown field '${word}'`,
+          message: guess
+            ? `Unknown field '${word}' — did you mean '${guess}'?`
+            : `Unknown field '${word}'`,
           severity: "warning",
+          fix: guess
+            ? { start, end, replacement: guess, label: `Use '${guess}'` }
+            : undefined,
         });
       }
     }
   }
 
+  // --- Missing comma between SELECT fields ---
+  // `SELECT Name AccountNumber …` is read by Salesforce as aliasing (only legal
+  // for aggregates) → MALFORMED_QUERY. Flag two adjacent field tokens in the
+  // SELECT list with a quick-fix that inserts the comma. Skip aggregate queries
+  // (where aliasing is legal) and subquery/TYPEOF cases we can't reason about.
+  if (!hasTypeof) {
+    for (const gap of missingCommaGaps(masked)) {
+      if (underCaret(gap.secondStart, gap.secondEnd)) continue;
+      diagnostics.push({
+        start: gap.secondStart,
+        end: gap.secondEnd,
+        ...locate(gap.secondStart, lineStarts),
+        message: `Missing comma before '${text.slice(
+          gap.secondStart,
+          gap.secondEnd
+        )}'?`,
+        severity: "error",
+        fix: {
+          start: gap.insertAt,
+          end: gap.insertAt,
+          replacement: ",",
+          label: "Insert comma",
+        },
+      });
+    }
+  }
+
   diagnostics.sort((a, b) => a.start - b.start);
   return diagnostics;
+}
+
+function depthArrayOf(masked: string): number[] {
+  const arr = new Array<number>(masked.length);
+  let d = 0;
+  for (let i = 0; i < masked.length; i++) {
+    arr[i] = d;
+    const c = masked[i];
+    if (c === "(") d++;
+    else if (c === ")") d = Math.max(0, d - 1);
+  }
+  return arr;
+}
+
+function firstTopLevel(
+  masked: string,
+  depth: number[],
+  re: RegExp,
+  from = 0
+): number {
+  re.lastIndex = from;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(masked))) {
+    if (depth[m.index] === 0) return m.index;
+  }
+  return -1;
+}
+
+interface Gap {
+  insertAt: number;
+  secondStart: number;
+  secondEnd: number;
+}
+
+/**
+ * Find adjacent field tokens in the SELECT list separated only by whitespace
+ * (i.e. a missing comma). Operates on the masked source (strings blanked).
+ * Bails on aggregate queries, where trailing aliases are legal.
+ */
+function missingCommaGaps(masked: string): Gap[] {
+  const depth = depthArrayOf(masked);
+  const selStart = firstTopLevel(masked, depth, /\bSELECT\b/gi);
+  if (selStart < 0) return [];
+  const selEnd = selStart + "SELECT".length;
+  let fromStart = firstTopLevel(masked, depth, /\bFROM\b/gi, selEnd);
+  if (fromStart < 0) fromStart = masked.length;
+
+  const body = masked.slice(selEnd, fromStart);
+  if (/\b(COUNT|COUNT_DISTINCT|SUM|AVG|MIN|MAX)\s*\(/i.test(body)) return [];
+
+  const gaps: Gap[] = [];
+  const pushEntry = (a: number, b: number) => {
+    if (masked.slice(a, b).includes("(")) return; // function / subquery entry
+    const tre = /[A-Za-z_][A-Za-z0-9_.]*/g;
+    const toks: { s: number; e: number; w: string }[] = [];
+    let tm: RegExpExecArray | null;
+    const seg = masked.slice(a, b);
+    while ((tm = tre.exec(seg))) {
+      const s = a + tm.index;
+      if (depth[s] !== 0) continue;
+      toks.push({ s, e: s + tm[0].length, w: tm[0] });
+    }
+    for (let i = 0; i + 1 < toks.length; i++) {
+      const t0 = toks[i];
+      const t1 = toks[i + 1];
+      if (RESERVED.has(t0.w.toUpperCase()) || RESERVED.has(t1.w.toUpperCase()))
+        continue;
+      if (!/^\s+$/.test(masked.slice(t0.e, t1.s))) continue;
+      gaps.push({ insertAt: t0.e, secondStart: t1.s, secondEnd: t1.e });
+      break; // one suggestion per SELECT entry
+    }
+  };
+
+  let entryStart = selEnd;
+  for (let i = selEnd; i < fromStart; i++) {
+    if (masked[i] === "," && depth[i] === 0) {
+      pushEntry(entryStart, i);
+      entryStart = i + 1;
+    }
+  }
+  pushEntry(entryStart, fromStart);
+  return gaps;
 }

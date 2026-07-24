@@ -54,10 +54,11 @@ src/lib/
   soqlComplete.ts      SOQL autocomplete engine — context analysis + ranking (pure)
   soqlLint.ts          SOQL linter — structural + unknown object/field diagnostics (pure)
   soqlFormat.ts        SOQL auto-formatter — canonical multi-line reflow (pure)
+  fuzzy.ts             Levenshtein / OSA distance + nearest — "did you mean" (pure)
   caretCoords.ts       textarea caret pixel position (hidden-mirror) for the popup
 
 Tests: Vitest, colocated as src/**/*.test.ts (crypto, session, rateLimit, csv,
-soqlComplete, soqlLint, soqlFormat).
+soqlComplete, soqlLint, soqlFormat, fuzzy, sfError).
 CI: .github/workflows/ci.yml runs typecheck → lint → test → build on PRs.
 
 src/app/api/           route handlers (all runtime="nodejs", all isAuthenticated())
