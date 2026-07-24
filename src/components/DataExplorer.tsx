@@ -10,6 +10,7 @@ import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 import ObjectPicker from "@/components/ObjectPicker";
 import ErrorNotice from "@/components/ErrorNotice";
 import ExportMenu, { type ExportFormat } from "@/components/ExportMenu";
+import ExcelDataView from "@/components/ExcelDataView";
 import { useVirtualRows } from "@/lib/useVirtualRows";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 import { useFocusTrap } from "@/lib/useFocusTrap";
@@ -191,6 +192,10 @@ export default function DataExplorer() {
     false
   );
   const [pendingLoad, setPendingLoad] = useState<SavedQuery | null>(null);
+  const [viewMode, setViewMode] = usePersistentState<"classic" | "excel">(
+    "sfde.explorer.view",
+    "classic"
+  );
 
   // Full describe field objects, keyed by name, for the metadata dialog.
   const [rawFieldMap, setRawFieldMap] = useState<
@@ -882,13 +887,77 @@ export default function DataExplorer() {
 
   return (
     <div>
-      <h1>Data Explorer</h1>
-      <p className="muted">
-        Pick an object, choose columns (including related and child fields), add
-        filters — the SOQL is generated for you and you can run, export, or save
-        it.
-      </p>
       {error && <ErrorNotice error={error} />}
+      {viewMode === "excel" ? (
+        <ExcelDataView
+          objects={objects}
+          objectsLoading={objectsLoading}
+          selectedObject={selectedObject}
+          onSelectObject={setSelectedObject}
+          fieldsLoading={fieldsLoading}
+          filteredFields={filteredFields}
+          columns={columns}
+          toggleColumn={toggleColumn}
+          setAllColumns={() => setColumns(fields.map((f) => f.name))}
+          clearColumns={() => setColumns([])}
+          fieldFilter={fieldFilter}
+          setFieldFilter={setFieldFilter}
+          filters={filters}
+          filterFieldOptions={filterFieldOptions}
+          operators={OPERATORS}
+          addFilter={addFilter}
+          updateFilter={updateFilter}
+          removeFilter={removeFilter}
+          logic={logic}
+          setLogic={setLogic}
+          renderValueInput={renderValueInput}
+          sortFieldOptions={sortFieldOptions}
+          orderBy={orderBy}
+          setOrderBy={setOrderBy}
+          orderDir={orderDir}
+          setOrderDir={setOrderDir}
+          limit={limit}
+          setLimit={setLimit}
+          soql={soql}
+          run={run}
+          running={running}
+          copySoql={copySoql}
+          copied={copied}
+          exportData={exportData}
+          exporting={exporting}
+          result={result}
+          rows={viewRows}
+          resultColumns={resultColumns}
+          saved={saved}
+          onLoadSaved={(id) => {
+            const q = saved.find((s) => s.id === id);
+            if (q) requestLoad(q);
+          }}
+          saveCurrent={saveCurrent}
+          onExitExcel={() => setViewMode("classic")}
+        />
+      ) : (
+        <>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "flex-start" }}
+          >
+            <div>
+              <h1 style={{ marginTop: 0 }}>Data Explorer</h1>
+              <p className="muted" style={{ marginTop: 0 }}>
+                Pick an object, choose columns (including related and child
+                fields), add filters — the SOQL is generated for you and you can
+                run, export, or save it.
+              </p>
+            </div>
+            <button
+              className="btn secondary"
+              onClick={() => setViewMode("excel")}
+              title="Switch to the Excel-style view"
+            >
+              ▦ Excel view
+            </button>
+          </div>
 
       {/* Build row: Saved queries · Columns · Filters */}
       <div className="grid3">
@@ -1478,6 +1547,8 @@ export default function DataExplorer() {
             <p className="muted">No records returned.</p>
           )}
         </div>
+      )}
+        </>
       )}
 
       {fieldModal && (

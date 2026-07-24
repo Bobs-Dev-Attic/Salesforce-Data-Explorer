@@ -1409,3 +1409,439 @@ code {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ============================================================
+   Excel-style Data Explorer view (self-contained light skin)
+   ============================================================ */
+.xl {
+  --xl-green: #217346;
+  --xl-green-dark: #1a5c38;
+  --xl-ribbon: #f3f2f1;
+  --xl-line: #d4d4d4;
+  --xl-head: #f5f5f5;
+  --xl-head-fg: #616161;
+  --xl-fieldfill: #e7f1ec;
+  color: #201f1e;
+  background: #ffffff;
+  border: 1px solid var(--xl-line);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+/* Title / quick-access bar */
+.xl-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--xl-green);
+  color: #fff;
+}
+.xl-logo {
+  font-size: 15px;
+}
+.xl-fname {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xl-qat {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+}
+.xl-qbtn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  width: 24px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.xl-qbtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+.xl-qbtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.xl-classic {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.xl-classic:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+/* Ribbon tabs */
+.xl-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 8px;
+  background: #fff;
+  border-bottom: 1px solid var(--xl-line);
+}
+.xl-tab {
+  background: none;
+  border: none;
+  padding: 8px 14px 6px;
+  font-size: 13px;
+  color: #444;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.xl-tab:hover {
+  background: var(--xl-ribbon);
+}
+.xl-tab.active {
+  color: var(--xl-green-dark);
+  font-weight: 600;
+  border-bottom-color: var(--xl-green);
+}
+/* Ribbon body */
+.xl-ribbon {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  align-items: stretch;
+  padding: 6px 8px;
+  background: var(--xl-ribbon);
+  border-bottom: 1px solid var(--xl-line);
+  min-height: 84px;
+  flex-wrap: wrap;
+}
+.xl-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-right: 1px solid var(--xl-line);
+}
+.xl-group-items {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+.xl-group-label {
+  text-align: center;
+  font-size: 11px;
+  color: var(--xl-head-fg);
+  margin-top: 4px;
+}
+.xl-big {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 60px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #201f1e;
+}
+.xl-big:hover:not(:disabled) {
+  background: #fff;
+  border-color: var(--xl-line);
+}
+.xl-big:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.xl-big-ico {
+  font-size: 20px;
+  color: var(--xl-green);
+}
+.xl-cmd {
+  background: #fff;
+  border: 1px solid var(--xl-line);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #201f1e;
+}
+.xl-cmd:hover:not(:disabled) {
+  border-color: var(--xl-green);
+}
+.xl-cmd:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.xl-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--xl-head-fg);
+}
+.xl-field select,
+.xl-field input,
+.xl .objpicker input {
+  background: #fff;
+  color: #201f1e;
+  border: 1px solid var(--xl-line);
+}
+/* Ribbon dropdown panels */
+.xl-panel {
+  position: absolute;
+  top: 100%;
+  z-index: 30;
+  min-width: 240px;
+  background: #fff;
+  color: #201f1e;
+  border: 1px solid var(--xl-line);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.xl-panel-head {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--xl-green-dark);
+  border-bottom: 1px solid var(--xl-line);
+  background: var(--xl-fieldfill);
+}
+.xl-panel-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.xl-panel-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #201f1e;
+}
+.xl-panel-item:hover {
+  background: var(--xl-fieldfill);
+}
+.xl-check {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.xl-check:hover {
+  background: var(--xl-fieldfill);
+}
+.xl-check .api {
+  color: var(--xl-head-fg);
+  font-size: 11px;
+}
+/* Formula bar */
+.xl-formulabar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #fff;
+  border-bottom: 1px solid var(--xl-line);
+}
+.xl-namebox {
+  min-width: 96px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-right: 1px solid var(--xl-line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xl-fx {
+  padding: 4px 10px;
+  font-style: italic;
+  color: var(--xl-head-fg);
+  border-right: 1px solid var(--xl-line);
+}
+.xl-formula {
+  flex: 1;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: Consolas, "SF Mono", ui-monospace, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #201f1e;
+}
+/* Spreadsheet grid */
+.xl-grid-wrap {
+  height: 460px;
+  overflow: auto;
+  background: #fff;
+}
+.xl-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--xl-head-fg);
+  font-size: 13px;
+}
+table.xl-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 12px;
+}
+.xl-grid th,
+.xl-grid td {
+  border-right: 1px solid var(--xl-line);
+  border-bottom: 1px solid var(--xl-line);
+  padding: 2px 6px;
+  height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.xl-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  background: var(--xl-head);
+}
+.xl-letters th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--xl-head);
+  color: var(--xl-head-fg);
+  text-align: center;
+  font-weight: 500;
+  height: 20px;
+}
+.xl-fields th {
+  position: sticky;
+  top: 20px;
+  z-index: 3;
+  background: var(--xl-fieldfill);
+  color: var(--xl-green-dark);
+  text-align: left;
+  font-weight: 600;
+}
+.xl-collabel.hi,
+.xl-rowhead.hi {
+  background: #c8e6d3;
+  color: var(--xl-green-dark);
+}
+.xl-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--xl-head);
+  color: var(--xl-head-fg);
+  text-align: center;
+  font-weight: 500;
+}
+.xl-fields .xl-rowhead {
+  z-index: 3;
+}
+.xl-cell {
+  background: #fff;
+  cursor: cell;
+}
+.xl-cell.sel {
+  outline: 2px solid var(--xl-green);
+  outline-offset: -2px;
+}
+/* Sheet tabs */
+.xl-sheettabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  background: var(--xl-ribbon);
+  border-top: 1px solid var(--xl-line);
+}
+.xl-sheet {
+  padding: 3px 14px;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--xl-line);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+}
+.xl-sheet.active {
+  font-weight: 600;
+  color: var(--xl-green-dark);
+  border-top: 2px solid var(--xl-green);
+}
+.xl-sheet.add {
+  color: var(--xl-head-fg);
+  cursor: default;
+}
+/* Status bar */
+.xl-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 12px;
+  background: var(--xl-green);
+  color: #fff;
+  font-size: 12px;
+}
+.xl-status-right {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Make nested controls light so they fit the Excel skin, not the dark app theme. */
+.xl select,
+.xl input,
+.xl textarea {
+  background: #fff;
+  color: #201f1e;
+  border: 1px solid var(--xl-line);
+  font-size: 12px;
+  padding: 5px 8px;
+}
+.xl .btn.secondary {
+  background: #fff;
+  color: #201f1e;
+  border: 1px solid var(--xl-line);
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.xl .btn.secondary:hover {
+  border-color: var(--xl-green);
+  filter: none;
+}
+.xl .dropdown-menu {
+  background: #fff;
+  border: 1px solid var(--xl-line);
+}
+.xl .dropdown-item {
+  color: #201f1e;
+}
+.xl .dropdown-item:hover,
+.xl .dropdown-item:focus-visible {
+  background: var(--xl-fieldfill);
+}
+.xl .linkbtn {
+  color: var(--xl-head-fg);
+}
+.xl .linkbtn:hover {
+  color: var(--xl-green-dark);
+}
