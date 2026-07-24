@@ -6,6 +6,7 @@ import { FunnelIcon, FieldMetadataDialog } from "@/components/fieldUi";
 import ObjectPicker from "@/components/ObjectPicker";
 import ErrorNotice from "@/components/ErrorNotice";
 import { useVirtualRows } from "@/lib/useVirtualRows";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 
 const EXPLORER_KEY = "sfde.explorer.state";
 const RESULT_ROW_HEIGHT = 33; // fixed height of a result row (cells are nowrap)
@@ -63,6 +64,7 @@ interface BuilderState {
   orderDir: string;
   limit: string;
   childSelections: Record<string, string[]>;
+  colWidths?: Record<string, number>;
 }
 
 const OPERATORS = ["=", "!=", "<", "<=", ">", ">=", "LIKE", "IN", "NOT IN"];
@@ -345,6 +347,7 @@ export default function DataExplorer() {
           setOrderDir(restore.orderDir);
           setLimit(restore.limit);
           setChildSelections(restore.childSelections || {});
+          if (restore.colWidths) colw.setWidths(restore.colWidths);
           restoreRef.current = null;
         } else {
           const defaults = fs
@@ -363,6 +366,9 @@ export default function DataExplorer() {
         setFieldsLoading(false);
       }
     })();
+    // colw.setWidths is stable and this restore is a one-shot on object load;
+    // depending on colw would re-run this data-loading effect every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedObject]);
 
   // ---- Relationship (parent) field loading ----
@@ -720,6 +726,7 @@ export default function DataExplorer() {
       orderDir,
       limit,
       childSelections,
+      colWidths: colw.widths,
     };
   }
 
@@ -760,6 +767,7 @@ export default function DataExplorer() {
         setOrderDir(s.orderDir);
         setLimit(s.limit);
         setChildSelections(s.childSelections || {});
+        if (s.colWidths) colw.setWidths(s.colWidths);
         restoreRef.current = null;
       } else {
         setSelectedObject(q.builder_state.selectedObject);
@@ -832,6 +840,7 @@ export default function DataExplorer() {
     viewRows.length,
     RESULT_ROW_HEIGHT
   );
+  const colw = useColumnWidths("sfde.explorer.colwidths");
 
   return (
     <div>
@@ -1290,7 +1299,15 @@ export default function DataExplorer() {
               ref={resultScrollRef}
               style={{ maxHeight: 560, overflowY: "auto", marginTop: 12 }}
             >
-              <table>
+              <table
+                className="rz-table"
+                style={{ width: colw.total(resultColumns) }}
+              >
+                <colgroup>
+                  {resultColumns.map((c) => (
+                    <col key={c} style={{ width: colw.widthOf(c) }} />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr>
                     {resultColumns.map((c) => (
@@ -1307,6 +1324,11 @@ export default function DataExplorer() {
                               : " ▼"
                             : ""}
                         </span>
+                        <span
+                          className="col-resize"
+                          onPointerDown={(e) => colw.startResize(c, e)}
+                          title="Drag to resize column"
+                        />
                         <button
                           className={`funnel-btn${
                             resColFilters[c] ? " active" : ""
